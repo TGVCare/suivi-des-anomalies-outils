@@ -480,6 +480,12 @@ function esc(s){
     return {"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"}[c];
   });
 }
+function telLinksHTML(str){
+  return esc(str).replace(/\b(?:\d{2}[\s.]){2,4}\d{2}\b/g, function(m){
+    var digits = m.replace(/[\s.]/g,"");
+    return '<a href="tel:'+digits+'">'+m+"</a>";
+  });
+}
 function uid(){ return "a-" + Date.now().toString(36) + "-" + Math.random().toString(36).slice(2,8); }
 function localISODate(d){
   var pad = function(n){ return (n<10?"0":"")+n; };
@@ -1165,8 +1171,8 @@ function signalementAideHTML(){
             '<div style="font-weight:800;margin-bottom:6px">'+esc(c.systeme)+"</div>"+
             '<div class="small" style="line-height:1.8">'+
               "<b>Support :</b> "+esc(c.support)+"<br>"+
-              "<b>Téléphone :</b> "+esc(c.tel)+"<br>"+
-              "<b>Email/Teams :</b> "+esc(c.contact)+"<br>"+
+              "<b>Téléphone :</b> "+telLinksHTML(c.tel)+"<br>"+
+              "<b>Email/Teams :</b> "+(/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(c.contact) ? '<a href="mailto:'+esc(c.contact)+'">'+esc(c.contact)+"</a>" : esc(c.contact))+"<br>"+
               "<b>Horaires :</b> "+esc(c.horaires)+
               (c.specifique ? ("<br><b>Spécificité :</b> "+esc(c.specifique)) : "")+
             "</div>"+
