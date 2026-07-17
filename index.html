@@ -57,6 +57,20 @@ input,select,textarea{font:inherit;color:inherit}
 .navlinks button{background:none;border:none;padding:8px 12px;border-radius:8px;font-weight:600;color:var(--mu);font-size:13.5px}
 .navlinks button.on{background:var(--hi-bg);color:var(--hi-d)}
 .navlinks button:hover{background:var(--grey-bg)}
+.mobile-nav-toggle{display:none;background:none;border:1px solid var(--line);border-radius:9px;width:36px;height:36px;align-items:center;justify-content:center;font-size:16px;color:var(--mu);flex-shrink:0;cursor:pointer}
+.mobile-nav-dropdown{display:none}
+@media(max-width:760px){
+  .navlinks{display:none}
+  .mobile-nav-toggle{display:flex}
+  .mobile-nav-dropdown{display:flex;flex-direction:column;gap:2px;padding:8px 20px 14px;border-top:1px solid var(--line)}
+  .mobile-nav-dropdown button{width:100%;text-align:left;padding:10px 12px;background:none;border:none;border-radius:8px;font-weight:600;color:var(--mu);font-size:14px}
+  .mobile-nav-dropdown button.on{background:var(--hi-bg);color:var(--hi-d)}
+  .brand small{display:none}
+  .topbar-in{padding:10px 12px;gap:8px}
+  .applogo{height:26px}
+  .brand{gap:5px}
+  .brand>div{font-size:13px;line-height:1.2}
+}
 
 /* ---- buttons ---- */
 .btn{display:inline-flex;align-items:center;gap:6px;border-radius:9px;padding:10px 16px;border:1px solid var(--line);background:var(--card);font-weight:600;font-size:13.5px;color:var(--ink);white-space:nowrap}
@@ -436,6 +450,7 @@ var S = {
   detailId: null,
   kioskIdx: 0,
   showSignalementAide: false,
+  mobileNavOpen: false,
   sort: {field:"dateDeclaration", dir:"desc"}
 };
 var P1_ALERT_DAYS = 5;
@@ -1056,13 +1071,16 @@ function topbar(){
   var al = computeAlerts();
   var alCount = al.overdue.length + al.p1np.length;
   var adminLabel = "Administration" + (alCount ? ' <span class="chip p1" style="padding:1px 7px;font-size:10.5px;margin-left:2px">'+alCount+"</span>" : "");
+  var navButtons = navBtn("home","Accueil")+navBtn("declare","Ticket")+navBtn("consult","Consulter")+
+      (S.authed ? navBtn("admin",adminLabel) : '<button data-a="nav" data-v="login">'+adminLabel+"</button>");
   return '<div class="topbar noprint"><div class="topbar-in">'+
     '<div class="brand" data-a="nav" data-v="home" style="cursor:pointer">'+APP_LOGO_SVG+RCAD_LOGO_IMG+'<div>Suivi Anomalies Outils<small>TGV CARE · UO Sud-Est</small></div></div>'+
-    '<div class="navlinks">'+
-      navBtn("home","Accueil")+navBtn("declare","Ticket")+navBtn("consult","Consulter")+
-      (S.authed ? navBtn("admin",adminLabel) : '<button data-a="nav" data-v="login">'+adminLabel+"</button>")+
-      themeSwitchHTML()+
-    "</div></div></div>";
+    '<div class="navlinks">'+navButtons+"</div>"+
+    themeSwitchHTML()+
+    '<button class="mobile-nav-toggle" data-a="toggle-mobile-nav" aria-label="Menu">'+(S.mobileNavOpen?"✕":"☰")+"</button>"+
+  "</div>"+
+  (S.mobileNavOpen ? ('<div class="mobile-nav-dropdown">'+navButtons+"</div>") : "")+
+  "</div>";
 }
 function footer(){
   return '<div class="footer noprint">Dispositif de pilotage des anomalies outils · Direction TGV CARE · UO Sud-Est &nbsp;·&nbsp; Données partagées entre sites (temps réel)</div>';
@@ -1074,6 +1092,7 @@ function pageContent(){
   if(S.page==="admin") return S.authed ? renderAdmin() : renderLogin();
   return renderHome();
 }
+var _lastRenderKey = null;
 function render(){
   if(S.page==="kiosk"){ kioskRender(); return; }
   var el = document.getElementById("app");
@@ -1081,7 +1100,9 @@ function render(){
   void el.offsetWidth;
   el.innerHTML = topbar() + pageContent() + footer();
   el.classList.add("fade-enter");
-  window.scrollTo(0,0);
+  var key = S.page+"|"+S.adminTab+"|"+(S.page==="declare"?S.declareDone:"");
+  if(key!==_lastRenderKey) window.scrollTo(0,0);
+  _lastRenderKey = key;
   runCountups();
 }
 
@@ -1989,7 +2010,12 @@ function handleAction(a, v, id){
       if(v==="login"){ S.pinInput=""; S.pinErr=false; }
       if(v==="admin" && !S.authed) v="login";
       S.detailId = null;
+      S.mobileNavOpen = false;
       S.page=v; render();
+      break;
+    case "toggle-mobile-nav":
+      S.mobileNavOpen = !S.mobileNavOpen;
+      render();
       break;
     case "sort": {
       if(S.sort.field===v){ S.sort.dir = S.sort.dir==="asc"?"desc":"asc"; }
