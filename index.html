@@ -479,19 +479,6 @@ function downloadFile(filename, content, mime){
   document.body.appendChild(a); a.click(); document.body.removeChild(a);
   setTimeout(function(){ URL.revokeObjectURL(url); }, 2000);
 }
-function toCSV(list){
-  var cols = ["id","dateDeclaration","site","declarant","outil","descriptif","impact","ticket","jira","severite","priorite","correctif","contournement","echeance","pilote","mep","commentaire","dateResolution","statut","source"];
-  var lines = [cols.join(";")];
-  list.forEach(function(a){
-    lines.push(cols.map(function(c){
-      var v = a[c]; if(v===undefined||v===null) v="";
-      if(typeof v==="boolean") v = v?"oui":"non";
-      v = String(v).replace(/"/g,'""');
-      return '"'+v+'"';
-    }).join(";"));
-  });
-  return "﻿" + lines.join("\r\n");
-}
 
 /* ============================= PERSISTANCE ============================= */
 function seedFromSource(){
@@ -1436,26 +1423,6 @@ function adminSaisie(){
     '<div class="btnrow"><button class="btn bp" data-a="submit-saisie">Ajouter l’anomalie</button></div>'+
   "</div>";
 }
-function adminImportExport(){
-  return '<div class="grid2">'+
-    '<div class="card pad">'+
-      "<h3>Exporter</h3>"+
-      '<p class="mut small" style="margin:8px 0 16px">Récupère l’ensemble des anomalies pour les partager ou les consolider avec un autre poste / site.</p>'+
-      '<div class="btnrow"><button class="btn bp" data-a="export-json">Export JSON (sauvegarde complète)</button><button class="btn" data-a="export-csv">Export CSV (Excel)</button></div>'+
-    "</div>"+
-    '<div class="card pad">'+
-      "<h3>Importer</h3>"+
-      '<p class="mut small" style="margin:8px 0 16px">Charge un export JSON (issu de cet outil). Les anomalies avec un identifiant déjà connu sont mises à jour, les autres sont ajoutées.</p>'+
-      '<input type="file" id="import-file-input" accept="application/json" style="display:none">'+
-      '<div class="btnrow"><button class="btn" data-a="import-json-trigger">Choisir un fichier JSON…</button></div>'+
-    "</div>"+
-  "</div>"+
-  '<div class="card pad" style="margin-top:18px">'+
-    '<h3 style="color:var(--p1)">Zone sensible</h3>'+
-    '<p class="mut small" style="margin:8px 0 16px">Ces actions modifient l’ensemble des données stockées dans ce navigateur.</p>'+
-    '<div class="btnrow"><button class="btn" data-a="reset-seed">Réinitialiser avec les données 2026 d’origine</button><button class="btn br" data-a="clear-all">Vider toutes les anomalies</button></div>'+
-  "</div>";
-}
 function adminReglages(){
   var f = S.forms.settings;
   return '<div class="grid2">'+
@@ -1476,6 +1443,11 @@ function adminReglages(){
     '<div class="field"><label>Nouveau code</label><input class="inp" type="password" data-f="forms.settings.newPin" value="'+esc(f.newPin)+'"></div>'+
     '<div class="field"><label>Confirmer</label><input class="inp" type="password" data-f="forms.settings.newPin2" value="'+esc(f.newPin2)+'"></div>'+
     '<button class="btn bp" data-a="change-pin">Mettre à jour le code</button>'+
+  "</div>"+
+  '<div class="card pad" style="margin-top:18px;max-width:420px">'+
+    '<h3 style="color:var(--p1)">Zone sensible</h3>'+
+    '<p class="mut small" style="margin:8px 0 16px">Ces actions modifient l’ensemble des données stockées dans ce navigateur.</p>'+
+    '<div class="btnrow"><button class="btn" data-a="reset-seed">Réinitialiser avec les données 2026 d’origine</button><button class="btn br" data-a="clear-all">Vider toutes les anomalies</button></div>'+
   "</div>";
 }
 function adminRapport(){
@@ -1806,33 +1778,6 @@ function refreshResults(){
   }
   runCountups();
 }
-function handleImportFile(inputEl){
-  var file = inputEl.files && inputEl.files[0];
-  if(!file) return;
-  var reader = new FileReader();
-  reader.onload = function(ev){
-    try{
-      var arr = JSON.parse(ev.target.result);
-      if(!Array.isArray(arr)) throw new Error("le fichier ne contient pas une liste d’anomalies.");
-      var byId = {};
-      S.anomalies.forEach(function(a){ byId[a.id]=a; });
-      var added=0, updated=0;
-      arr.forEach(function(item){
-        if(!item) return;
-        if(!item.id) item.id = uid();
-        if(byId[item.id]){ Object.assign(byId[item.id], item); updated++; }
-        else { S.anomalies.push(item); byId[item.id]=item; added++; }
-      });
-      save();
-      toast("Import terminé : "+added+" ajoutée(s), "+updated+" mise(s) à jour.");
-      render();
-    }catch(err){
-      toast("Fichier invalide : "+err.message, true);
-    }
-  };
-  reader.readAsText(file);
-  inputEl.value = "";
-}
 
 /* ============================= ACTIONS ============================= */
 function kioskRender(){
@@ -2025,15 +1970,6 @@ function handleAction(a, v, id){
       render();
       break;
     }
-    case "export-json":
-      downloadFile("anomalies-tgvcare-"+todayISO()+".json", JSON.stringify(S.anomalies, null, 2), "application/json");
-      break;
-    case "export-csv":
-      downloadFile("anomalies-tgvcare-"+todayISO()+".csv", toCSV(S.anomalies), "text/csv;charset=utf-8");
-      break;
-    case "import-json-trigger":
-      document.getElementById("import-file-input").click();
-      break;
     case "reset-seed":
       if(confirm("Réinitialiser toutes les données avec l’export 2026 d’origine ? Les modifications locales seront perdues.")){
         seedFromSource(); toast("Données réinitialisées."); render();
@@ -2099,7 +2035,6 @@ function handleAction(a, v, id){
   });
   app.addEventListener("change", function(e){
     var t = e.target;
-    if(t.id==="import-file-input"){ handleImportFile(t); return; }
     if(!t.dataset || !t.dataset.f) return;
     var val = t.type==="checkbox" ? t.checked : t.value;
     setDeep(t.dataset.f, val);
