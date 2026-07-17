@@ -344,6 +344,46 @@ var OUTILS_DEFAULT = ["SOLAR","AVD","WL","ONICS","CLARC","OUIFIT G30+","OUIFIT C
 var STATUTS_DEFAULT = ["À qualifier","En cadrage","Analyse SI","Attente info","En attente livraison correctif","Test recette validé","Résolu","Fermé","Surveillance","Pas une anomalie"];
 var IMPACTS = ["1 téléconseiller","Un site","Plusieurs sites / UO"];
 var STATUTS_OUVERTS = ["Résolu","Fermé","Pas une anomalie"]; // = NON "ouverts"
+var SIGNALEMENT_PREALABLE = [
+  "Rapproche-toi de ton manager pour confirmer les gestes métier.",
+  "Assure-toi d’avoir fait une déconnexion/reconnexion de l’application concernée et vidé le cache du navigateur."
+];
+var SIGNALEMENT_CONTACTS = [
+  {
+    systeme: "Solution WL CONTACT",
+    support: "UACA (ex ENCA)",
+    tel: "70 36 35 (à privilégier) ou 04 26 21 17 55",
+    contact: "enca@sncf.fr",
+    horaires: "Tous types d’incidents/demandes : Lun.–Ven. 8h–18h (sauf jours fériés). Incident majeur (astreinte) : Lun.–Ven. 18h–8h, week-end et jours fériés.",
+    specifique: "Téléphones fixes SNCF."
+  },
+  {
+    systeme: "CRM ONICS",
+    support: "Assistance RC (Avancial)",
+    tel: "30 40 09 (si urgence) ou 01 56 79 61 09",
+    contact: "AVCL_assistancedrcd@sncf.fr",
+    horaires: "Semaine (sauf jours fériés) : 7h–20h. Samedi : 9h–17h45. Dimanche et jours fériés : 11h30–19h15.",
+    specifique: ""
+  },
+  {
+    systeme: "Poste de Vente (SOLAR)",
+    support: "Assistance Gare (Avancial)",
+    tel: "30 40 50 ou 01 56 79 61 50",
+    contact: "Fil Teams pour les Community Managers",
+    horaires: "Semaine (sauf jours fériés) : 6h–20h. Samedi : 6h–20h. Dimanche et jours fériés : 7h–20h.",
+    specifique: ""
+  }
+];
+var SIGNALEMENT_ELEMENTS = [
+  "Date et heure de constatation",
+  "Nom/prénom ou login/CP (ou RID) de l’agent",
+  "Agent sur site ou en télétravail ?",
+  "L’anomalie concerne 1 agent ou tous les agents du site ?",
+  "Description de l’anomalie : texte du message ou code erreur (si pas de capture)",
+  "Capture d’écran complète (essentiel) — voire photo",
+  "N° de ticket si l’anomalie a déjà été signalée"
+];
+var SIGNALEMENT_NOTE = "Si l’anomalie a déjà été remontée, signale-la à nouveau : la récurrence permet de définir l’urgence et la priorisation du traitement.";
 var PRIORITE_LABEL = {P1:"P1 · Bloquant",P2:"P2 · Majeur",P3:"P3 · Modéré","":"Non priorisé"};
 var PIN_HASH_DEFAULT = "37af5d5e8af4f9b68b921548823107049b936d147df1b5ad62e9f9b619176d50"; // "TGVCARE"
 var STORE_KEY = "tgvcare_anomalies_v1";
@@ -395,6 +435,7 @@ var S = {
   consultView: "table",
   detailId: null,
   kioskIdx: 0,
+  showSignalementAide: false,
   sort: {field:"dateDeclaration", dir:"desc"}
 };
 var P1_ALERT_DAYS = 5;
@@ -1109,6 +1150,35 @@ function resetDeclareForm(){
   S.forms.declare = {dateDeclaration: todayISO(), site:"", outil:"", descriptif:"", declarant:"", impact:"", ticket:"", jira:"", severite:"", commentaire:""};
   S.declareDone = false;
 }
+function signalementAideHTML(){
+  var open = S.showSignalementAide;
+  return '<div class="card pad" style="margin-bottom:22px">'+
+    '<button data-a="toggle-signalement-aide" style="display:flex;justify-content:space-between;align-items:center;width:100%;background:none;border:none;text-align:left;padding:0;cursor:pointer;color:inherit">'+
+      '<span><strong>Comment bien signaler une anomalie ?</strong><br><span class="mut small">Qui contacter et quoi préparer, avant de remplir ce formulaire</span></span>'+
+      '<span class="mut" style="font-size:18px;flex-shrink:0;margin-left:10px">'+(open?"▴":"▾")+"</span>"+
+    "</button>"+
+    (open ? (
+      '<div style="margin-top:16px">'+
+        '<div class="banner warn" style="margin-bottom:16px">'+SIGNALEMENT_PREALABLE.map(function(t){ return "• "+esc(t); }).join("<br>")+"</div>"+
+        SIGNALEMENT_CONTACTS.map(function(c){
+          return '<div class="card pad" style="margin-bottom:12px;background:var(--grey-bg)">'+
+            '<div style="font-weight:800;margin-bottom:6px">'+esc(c.systeme)+"</div>"+
+            '<div class="small" style="line-height:1.8">'+
+              "<b>Support :</b> "+esc(c.support)+"<br>"+
+              "<b>Téléphone :</b> "+esc(c.tel)+"<br>"+
+              "<b>Email/Teams :</b> "+esc(c.contact)+"<br>"+
+              "<b>Horaires :</b> "+esc(c.horaires)+
+              (c.specifique ? ("<br><b>Spécificité :</b> "+esc(c.specifique)) : "")+
+            "</div>"+
+          "</div>";
+        }).join("")+
+        '<div class="mut small" style="font-weight:700;margin:14px 0 6px">Éléments à réunir avant d’appeler</div>'+
+        '<ul class="info-list">'+SIGNALEMENT_ELEMENTS.map(function(t){ return "<li>"+esc(t)+"</li>"; }).join("")+"</ul>"+
+        '<p class="small mut" style="margin-top:12px">'+esc(SIGNALEMENT_NOTE)+"</p>"+
+      "</div>"
+    ) : "")+
+  "</div>";
+}
 function renderDeclare(){
   if(S.declareDone && S.lastDeclared) return renderDeclareConfirm();
   var f = S.forms.declare;
@@ -1116,6 +1186,7 @@ function renderDeclare(){
     '<h1 style="font-size:26px">Remontée ticket incident</h1>'+
     '<p class="mut" style="margin-top:8px">Renseigne le ticket incident d’une anomalie déjà signalée : outil, contexte, impact. Le pilote outil complètera le suivi (correctif, contournement, échéance).</p>'+
     '<div class="divider"></div>'+
+    signalementAideHTML()+
     '<div class="grid2">'+
       field_select("Site", "forms.declare.site", f.site, [""].concat(SITES), true)+
       field_select("Outil concerné", "forms.declare.outil", f.outil, [""].concat(S.settings.outils), true)+
@@ -1990,6 +2061,10 @@ function handleAction(a, v, id){
       break;
     case "new-declare":
       resetDeclareForm(); render();
+      break;
+    case "toggle-signalement-aide":
+      S.showSignalementAide = !S.showSignalementAide;
+      render();
       break;
     case "toggle-row":
       S.expanded[id] = !S.expanded[id];
