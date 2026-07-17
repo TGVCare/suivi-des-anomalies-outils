@@ -577,9 +577,6 @@ function clearAllRemote(){
     return batch.commit();
   })["catch"](function(e){ toast("Erreur : "+e.message, true); });
 }
-function resetToSeedRemote(){
-  return clearAllRemote().then(seedFromSource);
-}
 function saveAnomaly(a){
   db.collection("anomalies").doc(a.id).set(a)["catch"](function(e){ toast("Erreur d'enregistrement : "+e.message, true); });
 }
@@ -1624,8 +1621,8 @@ function adminReglages(){
   "</div>"+
   '<div class="card pad" style="margin-top:18px;max-width:420px">'+
     '<h3 style="color:var(--p1)">Zone sensible</h3>'+
-    '<p class="mut small" style="margin:8px 0 16px">Ces actions modifient l’ensemble des données partagées, visibles par tous les sites.</p>'+
-    '<div class="btnrow"><button class="btn" data-a="reset-seed">Réinitialiser avec les données 2026 d’origine</button><button class="btn br" data-a="clear-all">Vider toutes les anomalies</button></div>'+
+    '<p class="mut small" style="margin:8px 0 16px">Cette action supprime l’ensemble des données partagées, visibles par tous les sites. Pense à faire une sauvegarde avant.</p>'+
+    '<div class="btnrow"><button class="btn br" data-a="clear-all">Vider toutes les anomalies</button></div>'+
   "</div>";
 }
 function adminRapport(){
@@ -2169,16 +2166,16 @@ function handleAction(a, v, id){
         restoreFromArchive(id).then(function(){ toast("Archive restaurée."); })["catch"](function(e){ toast("Erreur : "+e.message, true); });
       }
       break;
-    case "reset-seed":
-      if(confirm("Réinitialiser toutes les données partagées avec l’export 2026 d’origine ? Les modifications seront perdues pour tout le monde.")){
-        resetToSeedRemote(); toast("Données réinitialisées."); render();
-      }
-      break;
-    case "clear-all":
-      if(confirm("Supprimer TOUTES les anomalies partagées (visibles par tous les sites) ?")){
+    case "clear-all": {
+      var confirmWord = prompt("Cette action supprime TOUTES les anomalies partagées, pour tous les sites, sans retour possible au-delà de ta dernière sauvegarde.\n\nTape VIDER en majuscules pour confirmer :");
+      if(confirmWord===null) break;
+      if(confirmWord==="VIDER"){
         S.anomalies=[]; clearAllRemote(); toast("Toutes les anomalies ont été supprimées."); render();
+      } else {
+        toast("Confirmation invalide : rien n’a été supprimé.", true);
       }
       break;
+    }
     case "add-outil": {
       var no = (S.forms.settings.newOutil||"").trim();
       if(no && S.settings.outils.indexOf(no)===-1){ S.settings.outils.push(no); S.settings.outils.sort(); }
