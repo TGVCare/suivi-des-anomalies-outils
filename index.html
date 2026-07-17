@@ -376,6 +376,7 @@ var S = {
   authed: false,
   adminTab: "overview",
   anomalies: [],
+  archives: [],
   settings: { outils: OUTILS_DEFAULT.slice(), statuts: STATUTS_DEFAULT.slice(), pinHash: PIN_HASH_DEFAULT },
   forms: {
     declare: {}, saisie: {}, edit: {},
@@ -526,6 +527,25 @@ function deleteAnomalyRemote(id){
 function saveSettings(){
   db.doc("settings/global").set(S.settings)["catch"](function(e){ toast("Erreur d'enregistrement : "+e.message, true); });
 }
+function archiveNow(){
+  var doc = {
+    archivedAt: nowISOTime(),
+    auteur: S.currentAuthor||"Administration",
+    anomalies: S.anomalies,
+    settings: S.settings
+  };
+  return db.collection("archives").doc(uid()).set(doc);
+}
+function restoreFromArchive(archiveId){
+  var arch = S.archives.filter(function(a){ return a._id===archiveId; })[0];
+  if(!arch) return Promise.reject(new Error("Archive introuvable."));
+  return clearAllRemote().then(function(){
+    var batch = db.batch();
+    (arch.anomalies||[]).forEach(function(a){ batch.set(db.collection("anomalies").doc(a.id), a); });
+    if(arch.settings) batch.set(db.doc("settings/global"), arch.settings);
+    return batch.commit();
+  });
+}
 function load(){
   try{ S.currentAuthor = localStorage.getItem(AUTHOR_KEY) || ""; }catch(e){}
   db.collection("anomalies").onSnapshot(function(snap){
@@ -541,6 +561,12 @@ function load(){
     STATUTS_DEFAULT.forEach(function(st){ if(S.settings.statuts.indexOf(st)===-1) S.settings.statuts.push(st); });
     render();
   }, function(e){ toast("Erreur de synchronisation : "+e.message, true); });
+  db.collection("archives").orderBy("archivedAt","desc").limit(10).onSnapshot(function(snap){
+    var arr = [];
+    snap.forEach(function(doc){ arr.push(Object.assign({_id:doc.id}, doc.data())); });
+    S.archives = arr;
+    render();
+  }, function(e){});
   db.collection("anomalies").limit(1).get().then(function(snap){
     if(snap.empty) seedFromSource();
   });
@@ -1485,7 +1511,18 @@ function adminReglages(){
   '<div class="card pad" style="margin-top:18px;max-width:420px">'+
     "<h3>Sauvegarde</h3>"+
     '<p class="mut small" style="margin:8px 0 16px">Les données sont hébergées sur Firestore (offre gratuite), sans sauvegarde automatique. Télécharge un point de sauvegarde régulièrement, ou avant toute action de la zone sensible ci-dessous.</p>'+
-    '<div class="btnrow"><button class="btn bp" data-a="export-backup">Télécharger une sauvegarde (JSON)</button></div>'+
+    '<div class="btnrow"><button class="btn bp" data-a="export-backup">Télécharger une sauvegarde (JSON)</button><button class="btn" data-a="archive-now">Archiver maintenant</button></div>'+
+    (S.archives && S.archives.length ? (
+      '<div style="margin-top:14px">'+
+        '<div class="mut small" style="font-weight:700;margin-bottom:8px">Archives récentes</div>'+
+        S.archives.map(function(a){
+          return '<div style="display:flex;align-items:center;justify-content:space-between;gap:10px;padding:8px 0;border-bottom:1px solid var(--line)">'+
+            '<span class="small">'+esc(fmtDateTime(a.archivedAt))+' · '+((a.anomalies||[]).length)+' anomalies · '+esc(a.auteur||"")+'</span>'+
+            '<button class="btn bsm" data-a="restore-archive" data-id="'+esc(a._id)+'">Restaurer</button>'+
+          "</div>";
+        }).join("")+
+      "</div>"
+    ) : '<p class="mut small">Aucune archive pour l’instant.</p>')+
   "</div>"+
   '<div class="card pad" style="margin-top:18px;max-width:420px">'+
     '<h3 style="color:var(--p1)">Zone sensible</h3>'+
@@ -2016,6 +2053,14 @@ function handleAction(a, v, id){
     case "export-backup":
       downloadFile("sauvegarde-anomalies-tgvcare-"+todayISO()+".json", JSON.stringify({exportedAt: nowISOTime(), anomalies: S.anomalies, settings: S.settings}, null, 2), "application/json");
       toast("Sauvegarde téléchargée.");
+      break;
+    case "archive-now":
+      archiveNow().then(function(){ toast("Archive créée."); })["catch"](function(e){ toast("Erreur : "+e.message, true); });
+      break;
+    case "restore-archive":
+      if(confirm("Restaurer cette archive ? Les données actuelles seront remplacées pour tout le monde.")){
+        restoreFromArchive(id).then(function(){ toast("Archive restaurée."); })["catch"](function(e){ toast("Erreur : "+e.message, true); });
+      }
       break;
     case "reset-seed":
       if(confirm("Réinitialiser toutes les données partagées avec l’export 2026 d’origine ? Les modifications seront perdues pour tout le monde.")){
