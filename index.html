@@ -1917,7 +1917,7 @@ function handleAction(a, v, id){
     case "sort": {
       if(S.sort.field===v){ S.sort.dir = S.sort.dir==="asc"?"desc":"asc"; }
       else { S.sort.field=v; S.sort.dir = (SORT_DATE_FIELDS.indexOf(v)!==-1) ? "desc" : "asc"; }
-      render();
+      refreshResults();
       break;
     }
     case "tab":
