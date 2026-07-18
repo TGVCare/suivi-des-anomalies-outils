@@ -1950,6 +1950,8 @@ function refreshResults(){
       var list = filteredAnomalies();
       el2.innerHTML = adminTableHTML(list) + '<p class="small mut" style="margin-top:12px">'+list.length+" anomalie(s) affichée(s) sur "+S.anomalies.length+".</p>";
     }
+  } else {
+    render();
   }
   runCountups();
 }
