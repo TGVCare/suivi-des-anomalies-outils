@@ -325,9 +325,13 @@ table.tbl td.desc{max-width:320px}
 .kiosk .kiosk-kpis .n{font-size:88px;font-weight:800;line-height:1;font-variant-numeric:tabular-nums}
 .kiosk .kiosk-kpis .l{font-size:15px;opacity:.7;margin-top:10px;text-align:center}
 .kiosk .kiosk-dots{display:flex;gap:8px;position:absolute;bottom:28px}
-.kiosk .kiosk-dots span{width:8px;height:8px;border-radius:50%;background:rgba(255,255,255,.25)}
+.kiosk .kiosk-dots span{width:8px;height:8px;border-radius:50%;background:rgba(255,255,255,.25);cursor:pointer}
 .kiosk .kiosk-dots span.on{background:#fff}
 .kiosk .kiosk-body{width:100%;max-width:1000px}
+.kiosk .kiosk-nav{position:absolute;top:50%;transform:translateY(-50%);background:rgba(255,255,255,.12);border:none;color:#fff;width:52px;height:52px;border-radius:50%;font-size:26px;display:flex;align-items:center;justify-content:center;cursor:pointer}
+.kiosk .kiosk-nav:hover{background:rgba(255,255,255,.22)}
+.kiosk .kiosk-prev{left:20px}
+.kiosk .kiosk-next{right:20px}
 
 /* ---- animations ---- */
 .fade-enter{animation:fadeIn .28s ease}
@@ -479,8 +483,7 @@ function sortArrow(field){
 
 var THEME_KEY = "tgvcare_theme_v1";
 var dragState = { id: null };
-var kioskTimer = null;
-var KIOSK_SECTIONS = ["kpis","donut","trend","alerts"];
+var KIOSK_SECTIONS = ["centralisation","visibilite","indicateurs","donut","trend"];
 var STATUT_HEX = {
   "À qualifier":"#8A93A8","En cadrage":"#8B5CF6","Analyse SI":"#5B2A8C","Attente info":"#2454C7",
   "En attente livraison correctif":"#DB8A2E","Test recette validé":"#0EA5A5","Résolu":"#2E9F6A",
@@ -2035,31 +2038,48 @@ function kioskRender(){
   var el = document.getElementById("app");
   var list = S.anomalies;
   var k = computeKPIs(list);
+  var al = computeAlerts();
   var section = KIOSK_SECTIONS[S.kioskIdx % KIOSK_SECTIONS.length];
   var body = "";
-  if(section==="kpis"){
-    body = '<div class="kiosk-kpis">'+
-      '<div><div class="n">'+k.total+'</div><div class="l">Anomalies remontées</div></div>'+
-      '<div><div class="n">'+k.ouverts+'</div><div class="l">Ouvertes</div></div>'+
-      '<div><div class="n">'+k.taux+'%</div><div class="l">Taux de résolution</div></div>'+
-      '<div><div class="n">'+k.mep+'</div><div class="l">MEP réalisées</div></div>'+
+  if(section==="centralisation"){
+    var bySite = groupCount(list, "site");
+    body = '<div class="kiosk-body">'+
+      '<h3 style="color:#fff;font-size:16px;margin-bottom:18px;text-align:center;opacity:.85">Centraliser les anomalies remontées par les sites</h3>'+
+      barListHTML(bySite, bySite.length)+
     "</div>";
+  } else if(section==="visibilite"){
+    var correctifs = list.filter(function(a){ return a.correctif; }).length;
+    var contournements = list.filter(function(a){ return a.contournement; }).length;
+    body = '<div class="kiosk-body" style="text-align:center">'+
+      '<h3 style="color:#fff;font-size:16px;margin-bottom:18px;opacity:.85">Visibilité : anomalies, correctifs, contournements, échéances</h3>'+
+      '<div class="kiosk-kpis">'+
+        '<div><div class="n">'+k.total+'</div><div class="l">Anomalies identifiées</div></div>'+
+        '<div><div class="n">'+correctifs+'</div><div class="l">Correctifs en cours ou réalisés</div></div>'+
+        '<div><div class="n">'+contournements+'</div><div class="l">Contournements disponibles</div></div>'+
+        '<div><div class="n">'+al.overdue.length+'</div><div class="l">Échéances dépassées</div></div>'+
+      "</div></div>";
+  } else if(section==="indicateurs"){
+    body = '<div class="kiosk-body" style="text-align:center">'+
+      '<h3 style="color:#fff;font-size:16px;margin-bottom:18px;opacity:.85">Indicateurs clés</h3>'+
+      '<div class="kiosk-kpis">'+
+        '<div><div class="n">'+k.total+'</div><div class="l">Anomalies remontées</div></div>'+
+        '<div><div class="n">'+k.ouverts+'</div><div class="l">Tickets incidents ouverts</div></div>'+
+        '<div><div class="n">'+k.pilotes+'</div><div class="l">Pilotes engagés</div></div>'+
+        '<div><div class="n">'+k.mep+'</div><div class="l">MEP réalisées</div></div>'+
+        '<div><div class="n">'+k.taux+'%</div><div class="l">Taux de résolution</div></div>'+
+      "</div></div>";
   } else if(section==="donut"){
     body = '<div class="kiosk-body" style="text-align:center">'+donutChartHTML(list,k)+"</div>";
   } else if(section==="trend"){
     body = '<div class="kiosk-body"><h3 style="color:#fff;font-size:16px;margin-bottom:10px;text-align:center;opacity:.85">Tendance ('+TREND_WEEKS+' dernières semaines)</h3>'+trendChartHTML(list)+"</div>";
-  } else if(section==="alerts"){
-    var al = computeAlerts();
-    body = '<div class="kiosk-body" style="text-align:center">'+
-      '<div class="kiosk-kpis"><div><div class="n">'+al.overdue.length+'</div><div class="l">Échéances dépassées</div></div>'+
-      '<div><div class="n">'+al.p1np.length+"</div><div class=\"l\">P1 sans pilote depuis "+P1_ALERT_DAYS+"j+</div></div></div>"+
-    "</div>";
   }
   el.innerHTML = '<div class="kiosk">'+
     '<button class="kiosk-exit" data-a="kiosk-exit">Quitter ✕</button>'+
+    '<button class="kiosk-nav kiosk-prev" data-a="kiosk-prev" aria-label="Précédent">‹</button>'+
+    '<button class="kiosk-nav kiosk-next" data-a="kiosk-next" aria-label="Suivant">›</button>'+
     "<h2>Suivi des anomalies · TGV CARE / UO Sud-Est</h2>"+
     body+
-    '<div class="kiosk-dots">'+KIOSK_SECTIONS.map(function(s,i){ return '<span class="'+(i===S.kioskIdx%KIOSK_SECTIONS.length?"on":"")+'"></span>'; }).join("")+"</div>"+
+    '<div class="kiosk-dots">'+KIOSK_SECTIONS.map(function(s,i){ return '<span class="'+(i===S.kioskIdx%KIOSK_SECTIONS.length?"on":"")+'" data-a="kiosk-goto" data-v="'+i+'"></span>'; }).join("")+"</div>"+
   "</div>";
 }
 function startKiosk(){
@@ -2067,11 +2087,8 @@ function startKiosk(){
   S.page = "kiosk";
   if(document.documentElement.requestFullscreen){ document.documentElement.requestFullscreen()["catch"](function(){}); }
   kioskRender();
-  clearInterval(kioskTimer);
-  kioskTimer = setInterval(function(){ S.kioskIdx++; kioskRender(); }, 8000);
 }
 function stopKiosk(){
-  clearInterval(kioskTimer); kioskTimer=null;
   S.page = "consult";
   if(document.fullscreenElement){ document.exitFullscreen()["catch"](function(){}); }
   render();
@@ -2126,6 +2143,18 @@ function handleAction(a, v, id){
       break;
     case "kiosk-exit":
       stopKiosk();
+      break;
+    case "kiosk-next":
+      S.kioskIdx = (S.kioskIdx + 1) % KIOSK_SECTIONS.length;
+      kioskRender();
+      break;
+    case "kiosk-prev":
+      S.kioskIdx = (S.kioskIdx - 1 + KIOSK_SECTIONS.length) % KIOSK_SECTIONS.length;
+      kioskRender();
+      break;
+    case "kiosk-goto":
+      S.kioskIdx = parseInt(v,10) || 0;
+      kioskRender();
       break;
     case "login":
       if(!S.pinInput){ S.pinErr=true; render(); return; }
@@ -2354,7 +2383,10 @@ function handleAction(a, v, id){
     dragState.id = null;
   });
   document.addEventListener("keydown", function(e){
-    if(e.key==="Escape" && S.page==="kiosk"){ stopKiosk(); }
+    if(S.page!=="kiosk") return;
+    if(e.key==="Escape"){ stopKiosk(); }
+    else if(e.key==="ArrowRight" || e.key===" "){ e.preventDefault(); handleAction("kiosk-next"); }
+    else if(e.key==="ArrowLeft"){ handleAction("kiosk-prev"); }
   });
   document.addEventListener("fullscreenchange", function(){
     if(!document.fullscreenElement && S.page==="kiosk"){ stopKiosk(); }
