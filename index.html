@@ -1157,7 +1157,7 @@ function themeSwitchHTML(){
 function topbar(){
   var al = computeAlerts();
   var alCount = al.overdue.length + al.p1np.length;
-  var adminLabel = "Administration" + (alCount ? ' <span class="chip p1" style="padding:1px 7px;font-size:10.5px;margin-left:2px">'+alCount+"</span>" : "") + (S.notifications.length ? ' <span title="Nouvelles remontées" style="margin-left:2px;display:inline-flex;align-items:center">'+bellIconHTML(S.notifications.length)+"</span>" : "");
+  var adminLabel = "Administration" + (alCount ? ' <span class="chip p1" style="padding:1px 7px;font-size:10.5px;margin-left:2px">'+alCount+"</span>" : "") + (S.authed && S.notifications.length ? ' <span title="Nouvelles remontées" style="margin-left:2px;display:inline-flex;align-items:center">'+bellIconHTML(S.notifications.length)+"</span>" : "");
   var navButtons = navBtn("home","Accueil")+navBtn("declare","Ticket")+navBtn("consult","Consulter")+
       (S.authed ? navBtn("admin",adminLabel) : '<button data-a="nav" data-v="login">'+adminLabel+"</button>");
   return '<div class="topbar noprint"><div class="topbar-in">'+
