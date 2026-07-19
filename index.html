@@ -707,6 +707,7 @@ function load(){
     S.settings = Object.assign({outils:OUTILS_DEFAULT.slice(),statuts:STATUTS_DEFAULT.slice(),pinHash:PIN_HASH_DEFAULT}, data);
     OUTILS_DEFAULT.forEach(function(o){ if(S.settings.outils.indexOf(o)===-1) S.settings.outils.push(o); });
     STATUTS_DEFAULT.forEach(function(st){ if(S.settings.statuts.indexOf(st)===-1) S.settings.statuts.push(st); });
+    if(!S.authed && localStorage.getItem("adminAuthHash") && localStorage.getItem("adminAuthHash")===S.settings.pinHash){ S.authed = true; }
     render();
   }, function(e){ toast("Erreur de synchronisation : "+e.message, true); });
   db.collection("archives").orderBy("archivedAt","desc").limit(10).onSnapshot(function(snap){
@@ -2215,12 +2216,12 @@ function handleAction(a, v, id){
     case "login":
       if(!S.pinInput){ S.pinErr=true; render(); return; }
       sha256hex(S.pinInput).then(function(h){
-        if(h===S.settings.pinHash){ S.authed=true; S.page="admin"; S.adminTab="overview"; S.pinInput=""; S.pinErr=false; render(); toast("Connecté."); }
+        if(h===S.settings.pinHash){ S.authed=true; S.page="admin"; S.adminTab="overview"; S.pinInput=""; S.pinErr=false; localStorage.setItem("adminAuthHash", h); render(); toast("Connecté."); }
         else { S.pinErr=true; S.pinInput=""; render(); }
       });
       break;
     case "logout":
-      S.authed=false; S.page="home"; render();
+      S.authed=false; S.page="home"; localStorage.removeItem("adminAuthHash"); render();
       break;
     case "submit-declare": {
       var f = S.forms.declare;
@@ -2403,6 +2404,7 @@ function handleAction(a, v, id){
       if(np!==np2){ toast("Les deux codes ne correspondent pas.", true); return; }
       sha256hex(np).then(function(h){
         S.settings.pinHash = h; saveSettings();
+        localStorage.setItem("adminAuthHash", h);
         S.forms.settings.newPin=""; S.forms.settings.newPin2="";
         toast("Code administrateur mis à jour.");
         render();
