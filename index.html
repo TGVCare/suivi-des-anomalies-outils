@@ -445,6 +445,14 @@ if(fcmReady){
   navigator.serviceWorker.register("firebase-messaging-sw.js").then(function(reg){
     fcmSwRegistration = reg;
     messaging = firebase.messaging();
+    messaging.onMessage(function(payload){
+      var title = (payload.notification && payload.notification.title) || "Suivi Anomalies Outils";
+      var body = (payload.notification && payload.notification.body) || "";
+      if(Notification.permission==="granted" && fcmSwRegistration){
+        fcmSwRegistration.showNotification(title, {body: body, data: payload.data||{}});
+      }
+      toast(body ? (title+" — "+body) : title);
+    });
   })["catch"](function(err){ console.error("Échec enregistrement service worker FCM", err); });
 }
 function getFcmToken(){
