@@ -1402,14 +1402,6 @@ function consultResultsInner(){
   var detail = S.detailId ? S.anomalies.filter(function(x){ return x.id===S.detailId; })[0] : null;
   return buildKpiTilesHTML(list)+
     '<div class="card pad" style="margin-bottom:18px">'+progressGlobalHTML(k)+"</div>"+
-    '<div class="grid2" style="margin-bottom:18px">'+
-      '<div class="card pad"><h4 style="font-size:13px;text-transform:uppercase;color:var(--mu);margin-bottom:14px">Répartition par statut</h4>'+donutChartHTML(list,k)+"</div>"+
-      '<div class="card pad"><h4 style="font-size:13px;text-transform:uppercase;color:var(--mu);margin-bottom:14px">Tendance ('+TREND_WEEKS+' dernières semaines)</h4>'+trendChartHTML(list)+"</div>"+
-    "</div>"+
-    '<div class="grid2" style="margin-bottom:18px">'+
-      '<div class="card pad"><h4 style="font-size:13px;text-transform:uppercase;color:var(--mu);margin-bottom:14px">Par outil</h4>'+barListHTML(groupCount(list,"outil"),8,"outil")+"</div>"+
-      '<div class="card pad"><h4 style="font-size:13px;text-transform:uppercase;color:var(--mu);margin-bottom:14px">Pics de déclarations</h4>'+heatmapHTML(list,26)+"</div>"+
-    "</div>"+
     (detail ? detailPanelWrap(detail) : "")+
     (S.consultView==="cards" ? cardsHTML(list) : tableHTML(list))+
     '<p class="small mut" style="margin-top:12px">'+list.length+" anomalie(s) affichée(s) sur "+S.anomalies.length+".</p>";
@@ -1418,7 +1410,6 @@ function renderConsult(){
   return '<div class="wrap section">'+
     '<div style="display:flex;justify-content:space-between;align-items:flex-end;gap:14px;flex-wrap:wrap">'+
       '<div><h1 style="font-size:26px">Tableau de bord</h1><p class="mut" style="margin-top:6px">UO Sud-Est · Direction TGV CARE</p></div>'+
-      '<div class="btnrow noprint"><button class="btn" data-a="kiosk-start">'+ICON_BRIEF+' Mode brief</button><button class="btn" data-a="print-page">'+ICON_PRINT+' Imprimer / PDF</button></div>'+
     "</div>"+
     '<div class="toolbar noprint">'+
       '<input type="search" placeholder="Rechercher (outil, descriptif, ticket…)" data-f="filters.q" data-refresh="refreshResults" value="'+esc(S.filters.q)+'">'+
