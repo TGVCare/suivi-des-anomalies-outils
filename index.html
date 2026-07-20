@@ -461,8 +461,14 @@ var fcmReady = ("serviceWorker" in navigator) && firebase.messaging && firebase.
 var isIOSDevice = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
 var isStandaloneApp = window.navigator.standalone === true || (window.matchMedia && window.matchMedia("(display-mode: standalone)").matches);
 var iosNeedsInstall = isIOSDevice && !isStandaloneApp && !fcmReady;
-if(fcmReady){
-  navigator.serviceWorker.register("firebase-messaging-sw.js").then(function(reg){
+// Messaging n'est initialisé qu'à la demande (voir ensureFcmMessaging), jamais au
+// chargement de la page : firebase.messaging() une fois touché fait tenter à
+// httpsCallable() un enregistrement de service worker par défaut à la racine du
+// domaine (échec 404, notre SW est sur un sous-chemin), ce qui casse verifyPin/changePin.
+function ensureFcmMessaging(){
+  if(!fcmReady) return Promise.resolve(null);
+  if(messaging) return Promise.resolve(messaging);
+  return navigator.serviceWorker.register("firebase-messaging-sw.js").then(function(reg){
     fcmSwRegistration = reg;
     messaging = firebase.messaging();
     messaging.onMessage(function(payload){
@@ -473,14 +479,17 @@ if(fcmReady){
       }
       toast(body ? (title+" — "+body) : title);
     });
-  })["catch"](function(err){ console.error("Échec enregistrement service worker FCM", err); });
+    return messaging;
+  })["catch"](function(err){ console.error("Échec enregistrement service worker FCM", err); return null; });
 }
 function getFcmToken(){
   if(!fcmReady){ return Promise.resolve(null); }
   return Notification.requestPermission().then(function(perm){
     if(perm!=="granted") return null;
-    if(!messaging){ messaging = firebase.messaging(); }
-    return messaging.getToken({vapidKey: FCM_VAPID_KEY, serviceWorkerRegistration: fcmSwRegistration||undefined});
+    return ensureFcmMessaging().then(function(m){
+      if(!m) return null;
+      return m.getToken({vapidKey: FCM_VAPID_KEY, serviceWorkerRegistration: fcmSwRegistration||undefined});
+    });
   })["catch"](function(err){ console.error("getFcmToken error", err); return null; });
 }
 </script>
@@ -2327,7 +2336,10 @@ function handleAction(a, v, id){
       if(pinLockRemainingMs()>0){ render(); return; }
       if(!S.pinInput){ S.pinErr=true; render(); return; }
       verifyPinRemote(S.pinInput).then(function(ok){
-        if(ok){ pinResetFails(); S.authed=true; S.page="admin"; S.adminTab="overview"; S.pinInput=""; S.pinErr=false; localStorage.setItem("adminAuthed", "1"); render(); toast("Connecté."); }
+        if(ok){
+          pinResetFails(); S.authed=true; S.page="admin"; S.adminTab="overview"; S.pinInput=""; S.pinErr=false; localStorage.setItem("adminAuthed", "1"); render(); toast("Connecté.");
+          if(localStorage.getItem("fcmAdminToken")){ setTimeout(ensureFcmMessaging, 500); }
+        }
         else { pinRegisterFail(); S.pinErr=true; S.pinInput=""; render(); }
       })["catch"](function(e){ toast("Erreur de connexion : "+e.message, true); });
       break;
