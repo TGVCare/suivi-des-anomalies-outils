@@ -424,13 +424,13 @@ var SIGNALEMENT_ELEMENTS = [
 ];
 var SIGNALEMENT_NOTE = "Si l’anomalie a déjà été remontée, signale-la à nouveau : la récurrence permet de définir l’urgence et la priorisation du traitement.";
 var PRIORITE_LABEL = {P1:"P1 · Bloquant",P2:"P2 · Majeur",P3:"P3 · Modéré","":"Non priorisé"};
-var PIN_HASH_DEFAULT = "37af5d5e8af4f9b68b921548823107049b936d147df1b5ad62e9f9b619176d50"; // "TGVCARE"
 var STORE_KEY = "tgvcare_anomalies_v1";
 var AUTHOR_KEY = "tgvcare_author_v1";
 </script>
 <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-messaging-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-functions-compat.js"></script>
 <script>
 "use strict";
 var firebaseConfig = {
@@ -444,6 +444,13 @@ var firebaseConfig = {
 };
 firebase.initializeApp(firebaseConfig);
 var db = firebase.firestore();
+var cloudFunctions = firebase.functions();
+function verifyPinRemote(pin){
+  return cloudFunctions.httpsCallable("verifyPin")({pin: pin}).then(function(res){ return !!(res.data && res.data.ok); });
+}
+function changePinRemote(currentPin, newPin){
+  return cloudFunctions.httpsCallable("changePin")({currentPin: currentPin, newPin: newPin}).then(function(res){ return !!(res.data && res.data.ok); });
+}
 var FCM_VAPID_KEY = "BPZxGYzrnPoG8Zj7U1FVQK_fWaxOvXnvEaMQDgcz_ngzFDYRHyOYUKYSS7IGv6jS0Arpthq5ndmhPyZ6bV9M450";
 var messaging = null;
 var fcmSwRegistration = null;
@@ -486,10 +493,10 @@ var S = {
   adminTab: "overview",
   anomalies: [],
   archives: [],
-  settings: { outils: OUTILS_DEFAULT.slice(), statuts: STATUTS_DEFAULT.slice(), pinHash: PIN_HASH_DEFAULT },
+  settings: { outils: OUTILS_DEFAULT.slice(), statuts: STATUTS_DEFAULT.slice() },
   forms: {
     declare: {}, saisie: {}, edit: {},
-    settings: { newOutil:"", newStatut:"", newPin:"", newPin2:"" }
+    settings: { newOutil:"", newStatut:"", currentPin:"", newPin:"", newPin2:"" }
   },
   filters: { q:"", site:"all", outil:"all", statut:"all", priorite:"all" },
   expanded: {},
@@ -607,6 +614,26 @@ function sha256hex(str){
     return Array.from(new Uint8Array(buf)).map(function(b){ return b.toString(16).padStart(2,"0"); }).join("");
   });
 }
+var PIN_FAILS_KEY = "pinFailCount";
+var PIN_LOCK_KEY = "pinLockUntil";
+var PIN_MAX_ATTEMPTS = 5;
+var PIN_BASE_LOCK_SECONDS = 30;
+function pinLockRemainingMs(){
+  var until = parseInt(localStorage.getItem(PIN_LOCK_KEY)||"0", 10);
+  return Math.max(0, until - Date.now());
+}
+function pinRegisterFail(){
+  var fails = (parseInt(localStorage.getItem(PIN_FAILS_KEY)||"0", 10)) + 1;
+  localStorage.setItem(PIN_FAILS_KEY, String(fails));
+  if(fails>=PIN_MAX_ATTEMPTS){
+    var lockSeconds = PIN_BASE_LOCK_SECONDS * Math.pow(2, fails-PIN_MAX_ATTEMPTS);
+    localStorage.setItem(PIN_LOCK_KEY, String(Date.now() + lockSeconds*1000));
+  }
+}
+function pinResetFails(){
+  localStorage.removeItem(PIN_FAILS_KEY);
+  localStorage.removeItem(PIN_LOCK_KEY);
+}
 function downloadFile(filename, content, mime){
   var blob = new Blob([content], {type: mime});
   var url = URL.createObjectURL(blob);
@@ -623,7 +650,9 @@ function seedFromSource(){
   try{ seed = JSON.parse(raw.textContent); }catch(e){ seed = []; }
   var batch = db.batch();
   seed.forEach(function(a){ batch.set(db.collection("anomalies").doc(a.id), a); });
-  batch.set(db.doc("settings/global"), { outils: OUTILS_DEFAULT.slice(), statuts: STATUTS_DEFAULT.slice(), pinHash: PIN_HASH_DEFAULT });
+  batch.set(db.doc("settings/global"), { outils: OUTILS_DEFAULT.slice(), statuts: STATUTS_DEFAULT.slice() });
+  // Note: secrets/pinHash n'est pas seedable depuis le client (règles Firestore) --
+  // sur un tout nouveau projet, seed-le une fois via le SDK Admin (voir Cloud Functions).
   return batch.commit()["catch"](function(e){ toast("Erreur d'initialisation : "+e.message, true); });
 }
 function clearAllRemote(){
@@ -680,6 +709,7 @@ function restoreFromArchive(archiveId){
 }
 function load(){
   try{ S.currentAuthor = localStorage.getItem(AUTHOR_KEY) || ""; }catch(e){}
+  try{ if(localStorage.getItem("adminAuthed")==="1") S.authed = true; }catch(e){}
   db.collection("anomalies").onSnapshot(function(snap){
     var arr = [];
     snap.forEach(function(doc){ arr.push(doc.data()); });
@@ -704,10 +734,9 @@ function load(){
   }, function(e){ toast("Erreur de synchronisation : "+e.message, true); });
   db.doc("settings/global").onSnapshot(function(doc){
     var data = doc.exists ? doc.data() : {};
-    S.settings = Object.assign({outils:OUTILS_DEFAULT.slice(),statuts:STATUTS_DEFAULT.slice(),pinHash:PIN_HASH_DEFAULT}, data);
+    S.settings = Object.assign({outils:OUTILS_DEFAULT.slice(),statuts:STATUTS_DEFAULT.slice()}, data);
     OUTILS_DEFAULT.forEach(function(o){ if(S.settings.outils.indexOf(o)===-1) S.settings.outils.push(o); });
     STATUTS_DEFAULT.forEach(function(st){ if(S.settings.statuts.indexOf(st)===-1) S.settings.statuts.push(st); });
-    if(!S.authed && localStorage.getItem("adminAuthHash") && localStorage.getItem("adminAuthHash")===S.settings.pinHash){ S.authed = true; }
     render();
   }, function(e){ toast("Erreur de synchronisation : "+e.message, true); });
   db.collection("archives").orderBy("archivedAt","desc").limit(10).onSnapshot(function(snap){
@@ -1464,15 +1493,28 @@ function renderConsult(){
 }
 
 /* ============================= CONNEXION ============================= */
+var pinLockTimer = null;
+function ensurePinLockTimer(){
+  if(pinLockTimer) return;
+  pinLockTimer = setInterval(function(){
+    if(S.page!=="admin" || S.authed || pinLockRemainingMs()<=0){ clearInterval(pinLockTimer); pinLockTimer=null; if(S.page==="admin" && !S.authed) render(); return; }
+    render();
+  }, 1000);
+}
 function renderLogin(){
+  var lockMs = pinLockRemainingMs();
+  var locked = lockMs>0;
+  if(locked) ensurePinLockTimer();
+  var lockSeconds = Math.ceil(lockMs/1000);
   return '<div class="narrow section center">'+
     '<div class="lockicon"><svg width="40" height="40" viewBox="0 0 24 24" fill="none"><rect x="5" y="10.5" width="14" height="10" rx="2.2" stroke="currentColor" stroke-width="1.6"/><path d="M8 10.5V8a4 4 0 0 1 8 0v2.5" stroke="currentColor" stroke-width="1.6"/><circle cx="12" cy="15" r="1.3" fill="currentColor"/><path d="M12 16.3V18" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg></div>'+
     "<h2>Espace administrateur</h2>"+
     '<p class="mut" style="margin-top:6px">Réservé aux pilotes outils / encadrement.</p>'+
     '<div style="max-width:280px;margin:22px auto 0">'+
-      '<input class="inp" id="pin-input" type="password" placeholder="Code PIN" style="text-align:center;font-size:20px;letter-spacing:6px'+(S.pinErr?";border-color:var(--p1)":"")+'" value="'+esc(S.pinInput)+'" autofocus>'+
-      (S.pinErr ? '<p class="small" style="color:var(--p1);margin-top:8px">Code incorrect.</p>' : "")+
-      '<button class="btn bp" data-a="login" style="width:100%;justify-content:center;margin-top:14px">Se connecter</button>'+
+      '<input class="inp" id="pin-input" type="password" placeholder="Code PIN" style="text-align:center;font-size:20px;letter-spacing:6px'+(S.pinErr?";border-color:var(--p1)":"")+'" value="'+esc(S.pinInput)+'" autofocus'+(locked?" disabled":"")+'>'+
+      (S.pinErr && !locked ? '<p class="small" style="color:var(--p1);margin-top:8px">Code incorrect.</p>' : "")+
+      (locked ? '<p class="small" style="color:var(--p1);margin-top:8px">Trop de tentatives. Réessaie dans '+lockSeconds+'s.</p>' : "")+
+      '<button class="btn bp" data-a="login" style="width:100%;justify-content:center;margin-top:14px"'+(locked?" disabled":"")+'>'+(locked?"Bloqué":"Se connecter")+'</button>'+
     "</div>"+
   "</div>";
 }
@@ -1723,7 +1765,8 @@ function adminReglages(){
   "</div>"+
   '<div class="card pad" style="margin-top:18px;max-width:420px">'+
     "<h3>Code administrateur (PIN)</h3>"+
-    '<p class="mut small" style="margin:8px 0 14px">Par défaut : <code>TGVCARE</code>. Change-le pour restreindre l’accès à l’espace Administration.</p>'+
+    '<p class="mut small" style="margin:8px 0 14px">Change-le pour restreindre l’accès à l’espace Administration.</p>'+
+    '<div class="field"><label>Code actuel</label><input class="inp" type="password" data-f="forms.settings.currentPin" value="'+esc(f.currentPin)+'"></div>'+
     '<div class="field"><label>Nouveau code</label><input class="inp" type="password" data-f="forms.settings.newPin" value="'+esc(f.newPin)+'"></div>'+
     '<div class="field"><label>Confirmer</label><input class="inp" type="password" data-f="forms.settings.newPin2" value="'+esc(f.newPin2)+'"></div>'+
     '<button class="btn bp" data-a="change-pin">Mettre à jour le code</button>'+
@@ -2214,14 +2257,15 @@ function handleAction(a, v, id){
       kioskRender();
       break;
     case "login":
+      if(pinLockRemainingMs()>0){ render(); return; }
       if(!S.pinInput){ S.pinErr=true; render(); return; }
-      sha256hex(S.pinInput).then(function(h){
-        if(h===S.settings.pinHash){ S.authed=true; S.page="admin"; S.adminTab="overview"; S.pinInput=""; S.pinErr=false; localStorage.setItem("adminAuthHash", h); render(); toast("Connecté."); }
-        else { S.pinErr=true; S.pinInput=""; render(); }
-      });
+      verifyPinRemote(S.pinInput).then(function(ok){
+        if(ok){ pinResetFails(); S.authed=true; S.page="admin"; S.adminTab="overview"; S.pinInput=""; S.pinErr=false; localStorage.setItem("adminAuthed", "1"); render(); toast("Connecté."); }
+        else { pinRegisterFail(); S.pinErr=true; S.pinInput=""; render(); }
+      })["catch"](function(e){ toast("Erreur de connexion : "+e.message, true); });
       break;
     case "logout":
-      S.authed=false; S.page="home"; localStorage.removeItem("adminAuthHash"); render();
+      S.authed=false; S.page="home"; localStorage.removeItem("adminAuthed"); render();
       break;
     case "submit-declare": {
       var f = S.forms.declare;
@@ -2399,16 +2443,18 @@ function handleAction(a, v, id){
       saveSettings(); render();
       break;
     case "change-pin": {
-      var np = S.forms.settings.newPin, np2 = S.forms.settings.newPin2;
+      var curP = S.forms.settings.currentPin, np = S.forms.settings.newPin, np2 = S.forms.settings.newPin2;
+      if(!curP){ toast("Merci de saisir le code actuel.", true); return; }
       if(!np || np.length<4){ toast("Le code doit contenir au moins 4 caractères.", true); return; }
       if(np!==np2){ toast("Les deux codes ne correspondent pas.", true); return; }
-      sha256hex(np).then(function(h){
-        S.settings.pinHash = h; saveSettings();
-        localStorage.setItem("adminAuthHash", h);
-        S.forms.settings.newPin=""; S.forms.settings.newPin2="";
-        toast("Code administrateur mis à jour.");
-        render();
-      });
+      changePinRemote(curP, np).then(function(ok){
+        if(ok){
+          localStorage.setItem("adminAuthed", "1");
+          S.forms.settings.currentPin=""; S.forms.settings.newPin=""; S.forms.settings.newPin2="";
+          toast("Code administrateur mis à jour.");
+          render();
+        }
+      })["catch"](function(e){ toast("Erreur : "+(e.message||"code actuel incorrect"), true); });
       break;
     }
     default: break;
