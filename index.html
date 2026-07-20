@@ -137,6 +137,7 @@ legend{font-size:12.5px;font-weight:800;color:var(--hi-d);padding:0 6px;text-tra
 .chip.p3{background:var(--p3-bg);color:var(--p3)}
 .chip.pn{background:var(--grey-bg);color:var(--grey)}
 .chip.ok{background:var(--ok-bg);color:var(--ok)}
+.chip.hi{background:var(--hi-bg);color:var(--hi)}
 .chip.st{background:var(--grey-bg);color:var(--ink)}
 .chip.st.done{background:var(--ok-bg);color:var(--ok)}
 .chip.st.wait{background:var(--p2-bg);color:var(--p2)}
@@ -426,6 +427,8 @@ var SIGNALEMENT_NOTE = "Si l’anomalie a déjà été remontée, signale-la à 
 var PRIORITE_LABEL = {P1:"P1 · Bloquant",P2:"P2 · Majeur",P3:"P3 · Modéré","":"Non priorisé"};
 var STORE_KEY = "tgvcare_anomalies_v1";
 var AUTHOR_KEY = "tgvcare_author_v1";
+var MY_TICKETS_KEY = "myTicketIds";
+var MY_TICKETS_SEEN_KEY = "myTicketsSeen";
 </script>
 <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore-compat.js"></script>
@@ -633,6 +636,33 @@ function pinRegisterFail(){
 function pinResetFails(){
   localStorage.removeItem(PIN_FAILS_KEY);
   localStorage.removeItem(PIN_LOCK_KEY);
+}
+function trackMyTicket(id){
+  try{
+    var ids = JSON.parse(localStorage.getItem(MY_TICKETS_KEY)||"[]");
+    if(ids.indexOf(id)===-1){ ids.unshift(id); localStorage.setItem(MY_TICKETS_KEY, JSON.stringify(ids)); }
+  }catch(e){}
+}
+function getMyTicketIds(){
+  try{ return JSON.parse(localStorage.getItem(MY_TICKETS_KEY)||"[]"); }catch(e){ return []; }
+}
+function getMyTicketsSeen(){
+  try{ return JSON.parse(localStorage.getItem(MY_TICKETS_SEEN_KEY)||"{}"); }catch(e){ return {}; }
+}
+function markMyTicketSeen(id, statut){
+  try{
+    var seen = getMyTicketsSeen();
+    seen[id] = statut;
+    localStorage.setItem(MY_TICKETS_SEEN_KEY, JSON.stringify(seen));
+  }catch(e){}
+}
+function myTicketsUpdateCount(){
+  var ids = getMyTicketIds(), seen = getMyTicketsSeen(), n = 0;
+  ids.forEach(function(id){
+    var a = S.anomalies.filter(function(x){ return x.id===id; })[0];
+    if(a && seen[id]!==undefined && seen[id]!==a.statut) n++;
+  });
+  return n;
 }
 function downloadFile(filename, content, mime){
   var blob = new Blob([content], {type: mime});
@@ -1198,7 +1228,9 @@ function topbar(){
   var al = computeAlerts();
   var alCount = al.overdue.length + al.p1np.length;
   var adminLabel = "Administration" + (alCount ? ' <span class="chip p1" style="padding:1px 7px;font-size:10.5px;margin-left:2px">'+alCount+"</span>" : "") + (S.authed && S.notifications.length ? ' <span title="Nouvelles remontées" style="margin-left:2px;display:inline-flex;align-items:center">'+bellIconHTML(S.notifications.length)+"</span>" : "");
-  var navButtons = navBtn("home","Accueil")+navBtn("declare","Ticket")+navBtn("consult","Consulter")+
+  var myCount = myTicketsUpdateCount();
+  var myLabel = "Mes tickets" + (myCount ? ' <span class="chip hi" style="padding:1px 7px;font-size:10.5px;margin-left:2px">'+myCount+"</span>" : "");
+  var navButtons = navBtn("home","Accueil")+navBtn("declare","Ticket")+navBtn("mytickets",myLabel)+navBtn("consult","Consulter")+
       (S.authed ? navBtn("admin",adminLabel) : '<button data-a="nav" data-v="login">'+adminLabel+"</button>");
   return '<div class="topbar noprint"><div class="topbar-in">'+
     '<div class="brand" data-a="nav" data-v="home" style="cursor:pointer">'+APP_LOGO_SVG+RCAD_LOGO_IMG+'<div>Suivi Anomalies Outils<small>TGV CARE · UO Sud-Est</small></div></div>'+
@@ -1214,6 +1246,7 @@ function footer(){
 }
 function pageContent(){
   if(S.page==="declare") return renderDeclare();
+  if(S.page==="mytickets") return renderMyTickets();
   if(S.page==="consult") return renderConsult();
   if(S.page==="login") return renderLogin();
   if(S.page==="admin") return S.authed ? renderAdmin() : renderLogin();
@@ -1381,6 +1414,40 @@ function renderDeclareConfirm(){
       '<button class="btn" data-a="download-recap">Exporter (JSON)</button>'+
       '<button class="btn bp" data-a="new-declare">Remonter un autre ticket</button>'+
     "</div>"+
+    '<p class="mut small" style="margin-top:16px">Retrouve-le à tout moment dans <button data-a="nav" data-v="mytickets" style="background:none;border:none;padding:0;color:var(--hi);font-weight:700;cursor:pointer;text-decoration:underline">Mes tickets</button>.</p>'+
+  "</div>";
+}
+function renderMyTickets(){
+  var ids = getMyTicketIds();
+  var seen = getMyTicketsSeen();
+  var tickets = ids.map(function(id){ return S.anomalies.filter(function(a){ return a.id===id; })[0]; }).filter(Boolean);
+  var body;
+  if(!tickets.length){
+    body = '<div class="card pad center" style="padding:40px 20px;text-align:center">'+
+      '<p class="mut">Tu n’as pas encore de ticket suivi sur cet appareil.</p>'+
+      '<button class="btn bp" data-a="nav" data-v="declare" style="margin-top:14px">Remonter un ticket</button>'+
+    "</div>";
+  } else {
+    body = tickets.map(function(a){
+      var isNew = seen[a.id]!==undefined && seen[a.id]!==a.statut;
+      return '<div class="card pad" style="margin-bottom:14px'+(isNew?';border-color:var(--hi)':'')+'">'+
+        '<div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px;flex-wrap:wrap">'+
+          '<div><div style="font-weight:800">'+esc(a.outil)+(a.site?(" · "+esc(a.site)):"")+'</div>'+
+          '<p class="mut small" style="margin-top:4px">'+esc(truncate(a.descriptif,140))+"</p></div>"+
+          (isNew?'<span class="chip hi">Mis à jour</span>':"")+
+        "</div>"+
+        '<div style="margin-top:10px;display:flex;align-items:center;gap:10px;flex-wrap:wrap">'+statutChip(a.statut)+'<span class="mut small">Déclaré le '+fmtDate(a.dateDeclaration)+"</span></div>"+
+        (a.correctif?('<p class="small" style="margin-top:8px"><b>Correctif :</b> '+esc(a.correctif)+"</p>"):"")+
+        (a.contournement?('<p class="small" style="margin-top:4px"><b>Contournement :</b> '+esc(a.contournement)+"</p>"):"")+
+      "</div>";
+    }).join("");
+  }
+  tickets.forEach(function(a){ markMyTicketSeen(a.id, a.statut); });
+  return '<div class="narrow section">'+
+    '<h1 style="font-size:26px">Mes tickets</h1>'+
+    '<p class="mut" style="margin-top:8px">Suivi des anomalies que tu as signalées depuis cet appareil.</p>'+
+    '<div class="divider"></div>'+
+    body+
   "</div>";
 }
 
@@ -2285,6 +2352,8 @@ function handleAction(a, v, id){
         S.anomalies.unshift(obj);
         saveAnomaly(obj);
         pushNotification(obj);
+        trackMyTicket(obj.id);
+        markMyTicketSeen(obj.id, obj.statut);
         S.lastDeclared = obj;
         S.declareDone = true;
         render();
