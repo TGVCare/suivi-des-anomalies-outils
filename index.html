@@ -1506,15 +1506,18 @@ function renderMyTickets(){
   } else {
     body = tickets.map(function(a){
       var isNew = seen[a.id]!==undefined && seen[a.id]!==a.statut;
-      return '<div class="card pad" style="margin-bottom:14px'+(isNew?';border-color:var(--hi)':'')+'">'+
+      var expanded = !!S.expanded[a.id];
+      return '<div class="card pad" data-a="toggle-my-ticket" data-id="'+esc(a.id)+'" style="margin-bottom:14px;cursor:pointer'+(isNew?';border-color:var(--hi)':'')+'">'+
         '<div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px;flex-wrap:wrap">'+
           '<div><div style="font-weight:800">'+esc(a.outil)+(a.site?(" · "+esc(a.site)):"")+'</div>'+
           '<p class="mut small" style="margin-top:4px">'+esc(truncate(a.descriptif,140))+"</p></div>"+
-          (isNew?'<span class="chip hi">Mis à jour</span>':"")+
+          '<div style="display:flex;align-items:center;gap:8px;flex-shrink:0">'+
+            (isNew?'<span class="chip hi">Mis à jour</span>':"")+
+            '<span class="mut" style="font-size:16px">'+(expanded?"▴":"▾")+"</span>"+
+          "</div>"+
         "</div>"+
         '<div style="margin-top:10px;display:flex;align-items:center;gap:10px;flex-wrap:wrap">'+statutChip(a.statut)+'<span class="mut small">Déclaré le '+fmtDate(a.dateDeclaration)+"</span></div>"+
-        (a.correctif?('<p class="small" style="margin-top:8px"><b>Correctif :</b> '+esc(a.correctif)+"</p>"):"")+
-        (a.contournement?('<p class="small" style="margin-top:4px"><b>Contournement :</b> '+esc(a.contournement)+"</p>"):"")+
+        (expanded ? ('<div class="divider" style="margin:14px 0"></div>'+anomalyDetailHTML(a)) : "")+
       "</div>";
     }).join("");
   }
@@ -2354,6 +2357,10 @@ function handleAction(a, v, id){
     case "set-my-cp":
       setMyCp(S.myCpInput!==undefined ? S.myCpInput : "");
       toast(getMyCp() ? "CP enregistré." : "CP retiré.");
+      render();
+      break;
+    case "toggle-my-ticket":
+      S.expanded[id] = !S.expanded[id];
       render();
       break;
     case "sort": {
