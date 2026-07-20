@@ -1454,7 +1454,7 @@ function renderDeclare(){
     "</div>"+
     field_select("Sévérité perçue", "forms.declare.severite", f.severite, ["","Basse","Moyenne","Haute","Bloquante"], false)+
     '<div class="field"><label>Commentaire / éléments utiles</label><textarea class="inp" data-f="forms.declare.commentaire">'+esc(f.commentaire)+"</textarea></div>"+
-    field_text("Numéro CP (optionnel)", "forms.declare.cp", f.cp, "ex. 7412279A", false)+
+    field_text("Numéro CP (optionnel)", "forms.declare.cp", f.cp, "ex. 1234567A", false)+
     (f.cp ? '<p class="mut small" style="margin:-8px 0 10px">Tu retrouveras ce ticket sur tous tes appareils, et seras notifié automatiquement si son statut change.</p>' :
       '<p class="mut small" style="margin:-8px 0 10px">Renseigne-le pour retrouver ce ticket sur tous tes appareils et être notifié automatiquement des changements de statut.</p>')+
     (!f.cp && fcmReady ? '<label class="checkline" style="margin:4px 0 6px"><input type="checkbox" data-f="forms.declare.notifyMe" '+(f.notifyMe?"checked":"")+'> Me notifier sur cet appareil si le statut de mon ticket change</label>' :
@@ -1493,7 +1493,7 @@ function renderMyTickets(){
   var cpBlock = '<div class="card pad" style="margin-bottom:18px;max-width:420px">'+
     '<label class="small mut" style="font-weight:700;display:block;margin-bottom:8px">Numéro CP</label>'+
     '<div class="btnrow">'+
-      '<input class="inp" type="text" style="max-width:200px" data-f="myCpInput" value="'+esc(cpInputVal)+'" placeholder="ex. 7412279A">'+
+      '<input class="inp" type="text" style="max-width:200px" data-f="myCpInput" value="'+esc(cpInputVal)+'" placeholder="ex. 1234567A">'+
       '<button class="btn bsm" data-a="set-my-cp">Valider</button>'+
     "</div>"+
     (cp ? '<p class="mut small" style="margin-top:8px">Tickets liés à <b>'+esc(cp)+'</b> inclus, retrouvables sur tous tes appareils.</p>' : '<p class="mut small" style="margin-top:8px">Renseigne ton CP pour retrouver tes tickets et recevoir les notifications sur tous tes appareils.</p>')+
