@@ -1455,9 +1455,10 @@ function renderDeclare(){
     field_select("Sévérité perçue", "forms.declare.severite", f.severite, ["","Basse","Moyenne","Haute","Bloquante"], false)+
     '<div class="field"><label>Commentaire / éléments utiles</label><textarea class="inp" data-f="forms.declare.commentaire">'+esc(f.commentaire)+"</textarea></div>"+
     field_text("Numéro CP (optionnel)", "forms.declare.cp", f.cp, "ex. 7412279A", false)+
-    '<p class="mut small" style="margin:-8px 0 10px">Renseigne-le pour retrouver tes tickets et recevoir les notifications sur tous tes appareils.</p>'+
-    (fcmReady ? '<label class="checkline" style="margin:4px 0 6px"><input type="checkbox" data-f="forms.declare.notifyMe" '+(f.notifyMe?"checked":"")+'> Me notifier si le statut de mon ticket change</label>' :
-      (iosNeedsInstall ? '<p class="mut small" style="margin:4px 0 6px">Pour être notifié des changements de statut sur iPhone/iPad : appuie sur <b>Partager</b> puis <b>Sur l’écran d’accueil</b>, et rouvre l’app depuis cette icône.</p>' : ""))+
+    (f.cp ? '<p class="mut small" style="margin:-8px 0 10px">Tu retrouveras ce ticket sur tous tes appareils, et seras notifié automatiquement si son statut change.</p>' :
+      '<p class="mut small" style="margin:-8px 0 10px">Renseigne-le pour retrouver ce ticket sur tous tes appareils et être notifié automatiquement des changements de statut.</p>')+
+    (!f.cp && fcmReady ? '<label class="checkline" style="margin:4px 0 6px"><input type="checkbox" data-f="forms.declare.notifyMe" '+(f.notifyMe?"checked":"")+'> Me notifier sur cet appareil si le statut de mon ticket change</label>' :
+      (!f.cp && iosNeedsInstall ? '<p class="mut small" style="margin:4px 0 6px">Pour être notifié des changements de statut sur iPhone/iPad : appuie sur <b>Partager</b> puis <b>Sur l’écran d’accueil</b>, et rouvre l’app depuis cette icône.</p>' : ""))+
     '<div class="btnrow" style="margin-top:6px"><button class="btn bp" data-a="submit-declare">Enregistrer le ticket</button></div>'+
   "</div>";
 }
@@ -2356,8 +2357,17 @@ function handleAction(a, v, id){
       break;
     case "set-my-cp":
       setMyCp(S.myCpInput!==undefined ? S.myCpInput : "");
-      toast(getMyCp() ? "CP enregistré." : "CP retiré.");
-      render();
+      var newCp = getMyCp();
+      if(newCp){
+        getFcmToken().then(function(token){
+          if(token){ registerUserToken(newCp, token)["catch"](function(){}); toast("CP enregistré, notifications activées."); }
+          else { toast("CP enregistré. Notifications non activées (permission refusée)."); }
+          render();
+        });
+      } else {
+        toast("CP retiré.");
+        render();
+      }
       break;
     case "toggle-my-ticket":
       S.expanded[id] = !S.expanded[id];
@@ -2452,7 +2462,7 @@ function handleAction(a, v, id){
         render();
         toast("Ticket enregistré. Merci !");
       };
-      if(f.notifyMe){
+      if(f.notifyMe || obj.cp){
         getFcmToken().then(function(token){
           if(token && obj.cp){
             registerUserToken(obj.cp, token)["catch"](function(){});
