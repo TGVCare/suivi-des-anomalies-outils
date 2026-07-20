@@ -432,7 +432,6 @@ var MY_TICKETS_SEEN_KEY = "myTicketsSeen";
 </script>
 <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-messaging-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-functions-compat.js"></script>
 <script>
 "use strict";
@@ -457,29 +456,48 @@ function changePinRemote(currentPin, newPin){
 var FCM_VAPID_KEY = "BPZxGYzrnPoG8Zj7U1FVQK_fWaxOvXnvEaMQDgcz_ngzFDYRHyOYUKYSS7IGv6jS0Arpthq5ndmhPyZ6bV9M450";
 var messaging = null;
 var fcmSwRegistration = null;
-var fcmReady = ("serviceWorker" in navigator) && firebase.messaging && firebase.messaging.isSupported && firebase.messaging.isSupported();
+var fcmReady = ("serviceWorker" in navigator) && ("PushManager" in window) && ("Notification" in window);
 var isIOSDevice = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
 var isStandaloneApp = window.navigator.standalone === true || (window.matchMedia && window.matchMedia("(display-mode: standalone)").matches);
 var iosNeedsInstall = isIOSDevice && !isStandaloneApp && !fcmReady;
-// Messaging n'est initialisé qu'à la demande (voir ensureFcmMessaging), jamais au
-// chargement de la page : firebase.messaging() une fois touché fait tenter à
-// httpsCallable() un enregistrement de service worker par défaut à la racine du
-// domaine (échec 404, notre SW est sur un sous-chemin), ce qui casse verifyPin/changePin.
+// Le SDK firebase-messaging n'est chargé (balise <script> injectée dynamiquement) et
+// initialisé qu'à la demande, jamais au chargement de la page : dès que
+// firebase-messaging-compat.js est présent, httpsCallable() (Cloud Functions) tente en
+// interne d'attacher un token FCM à chaque appel, ce qui déclenche un enregistrement de
+// service worker par défaut à la racine du domaine (échec 404, notre SW est sur un
+// sous-chemin) et casse verifyPin/changePin. Le charger seulement au moment où les
+// notifications sont réellement activées évite ce conflit pour tout le monde.
+var _fcmSdkLoading = null;
+function loadMessagingSdk(){
+  if(firebase.messaging) return Promise.resolve();
+  if(_fcmSdkLoading) return _fcmSdkLoading;
+  _fcmSdkLoading = new Promise(function(resolve, reject){
+    var s = document.createElement("script");
+    s.src = "https://www.gstatic.com/firebasejs/10.14.1/firebase-messaging-compat.js";
+    s.onload = function(){ resolve(); };
+    s.onerror = function(){ reject(new Error("Échec de chargement du SDK Messaging")); };
+    document.head.appendChild(s);
+  });
+  return _fcmSdkLoading;
+}
 function ensureFcmMessaging(){
   if(!fcmReady) return Promise.resolve(null);
   if(messaging) return Promise.resolve(messaging);
-  return navigator.serviceWorker.register("firebase-messaging-sw.js").then(function(reg){
-    fcmSwRegistration = reg;
-    messaging = firebase.messaging();
-    messaging.onMessage(function(payload){
-      var title = (payload.notification && payload.notification.title) || "Suivi Anomalies Outils";
-      var body = (payload.notification && payload.notification.body) || "";
-      if(Notification.permission==="granted" && fcmSwRegistration){
-        fcmSwRegistration.showNotification(title, {body: body, data: payload.data||{}});
-      }
-      toast(body ? (title+" — "+body) : title);
+  return loadMessagingSdk().then(function(){
+    if(!firebase.messaging.isSupported || !firebase.messaging.isSupported()) return null;
+    return navigator.serviceWorker.register("firebase-messaging-sw.js").then(function(reg){
+      fcmSwRegistration = reg;
+      messaging = firebase.messaging();
+      messaging.onMessage(function(payload){
+        var title = (payload.notification && payload.notification.title) || "Suivi Anomalies Outils";
+        var body = (payload.notification && payload.notification.body) || "";
+        if(Notification.permission==="granted" && fcmSwRegistration){
+          fcmSwRegistration.showNotification(title, {body: body, data: payload.data||{}});
+        }
+        toast(body ? (title+" — "+body) : title);
+      });
+      return messaging;
     });
-    return messaging;
   })["catch"](function(err){ console.error("Échec enregistrement service worker FCM", err); return null; });
 }
 function getFcmToken(){
