@@ -1,11 +1,19 @@
 {
-    "hosting": {
-          "public": ".",
-          "ignore": [
-                  "firebase.json",
-                  "**/.git/**",
-                  "**/.github/**",
-                  "**/node_modules/**"
-          ]
-    }
+  "hosting": {
+    "public": ".",
+    "ignore": [
+      "firebase.json",
+      "firestore.rules",
+      "functions/**",
+      "**/.git/**",
+      "**/.github/**",
+      "**/node_modules/**"
+    ]
+  },
+  "functions": {
+    "source": "functions"
+  },
+  "firestore": {
+    "rules": "firestore.rules"
+  }
 }

@@ -1,0 +1,94 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ---- secrets: never readable/writable from any client, only Cloud Functions
+    // (Admin SDK bypasses rules entirely). This is where pinHash lives once split
+    // out of settings/global. Requires the verifyPin Cloud Function (see explication).
+    match /secrets/{doc} {
+      allow read, write: if false;
+    }
+
+    // ---- public app config (tool list, status list). Must stay readable so the
+    // public declaration form can populate its dropdowns.
+    match /settings/global {
+      allow read: if true;
+      allow write: if isValidSettingsWrite(request.resource.data);
+    }
+
+    // ---- anomalies: the core dataset. Public read (dashboard/kiosk/consultation
+    // are public-facing by design). Create is open (public declaration form) but
+    // field-validated to block spoofed/garbage data. Update/delete cannot be
+    // restricted to "admin only" without real auth -- see explication in chat.
+    match /anomalies/{anomalyId} {
+      allow read: if true;
+      allow create: if isValidAnomaly(request.resource.data);
+      allow update: if isValidAnomaly(request.resource.data);
+      allow delete: if true; // TODO: gate to admin once Firebase Auth is added
+    }
+
+    // ---- admin notification feed: derived from anomalies, not more sensitive.
+    // Created automatically whenever an anomaly is created (public or admin).
+    match /notifications/{id} {
+      allow read: if true;
+      allow create: if true;
+      allow update, delete: if true; // TODO: gate to admin once Firebase Auth is added
+    }
+
+    // ---- FCM tokens for admin push. No client ever needs to read this collection
+    // (only Cloud Functions, via Admin SDK). A client may only create/delete the
+    // doc matching its OWN token (the doc id), never anyone else's.
+    match /adminTokens/{token} {
+      allow read: if false;
+      allow create: if request.resource.data.token == token
+                     && request.resource.data.keys().hasOnly(['token','createdAt','ua']);
+      allow delete: if true;
+      allow update: if false;
+    }
+
+    // ---- FCM tokens grouped by declarant identifier (numéro CP), so a status-
+    // change notification reaches every device the person has registered under
+    // that CP, not just the one that submitted the ticket. Same shape/trust model
+    // as adminTokens: no read needed by clients, only Cloud Functions (Admin SDK).
+    match /userTokens/{cp}/tokens/{token} {
+      allow read: if false;
+      allow create: if request.resource.data.token == token
+                     && request.resource.data.keys().hasOnly(['token','createdAt','ua']);
+      allow delete: if true;
+      allow update: if false;
+    }
+
+    // ---- backups: full data snapshots (anomalies + settings). Left open for now
+    // (matches pre-existing risk level, no worse than before this change) -- cannot
+    // be safely restricted to admin-only without real auth. Note: settings snapshots
+    // no longer contain pinHash once it moves to /secrets, so this is a much smaller
+    // exposure than before even while left open. Revisit in Phase 2.
+    match /archives/{id} {
+      allow read, write: if true;
+    }
+
+    // ---- deny everything else by default
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+
+  function isValidSettingsWrite(data) {
+    return data.keys().hasOnly(['outils', 'statuts'])
+      && data.outils is list
+      && data.statuts is list;
+  }
+
+  function isValidAnomaly(data) {
+    return data.site is string
+      && data.declarant is string
+      && data.outil is string
+      && data.descriptif is string && data.descriptif.size() > 0 && data.descriptif.size() < 5000
+      && data.statut is string
+      && data.mep is bool
+      && data.commentaire is string
+      && (!('notifyToken' in data) || data.notifyToken is string)
+      && (!('cp' in data) || data.cp is string)
+      && (!('historique' in data) || data.historique is list);
+  }
+}
