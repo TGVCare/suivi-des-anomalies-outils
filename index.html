@@ -2091,6 +2091,7 @@ var XLSX_CONTENT_TYPES = OOXML_XML_HEAD+'<Types xmlns="http://schemas.openxmlfor
   '<Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/>'+
   '<Override PartName="/xl/worksheets/sheet1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>'+
   '<Override PartName="/xl/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"/>'+
+  '<Override PartName="/xl/theme/theme1.xml" ContentType="application/vnd.openxmlformats-officedocument.theme+xml"/>'+
   '<Override PartName="/docProps/core.xml" ContentType="application/vnd.openxmlformats-package.core-properties+xml"/>'+
   '<Override PartName="/docProps/app.xml" ContentType="application/vnd.openxmlformats-officedocument.extended-properties+xml"/>'+
   "</Types>";
@@ -2107,7 +2108,22 @@ var XLSX_WORKBOOK = OOXML_XML_HEAD+'<workbook xmlns="http://schemas.openxmlforma
 var XLSX_WORKBOOK_RELS = OOXML_XML_HEAD+'<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">'+
   '<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet1.xml"/>'+
   '<Relationship Id="rId2" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/>'+
+  '<Relationship Id="rId3" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/theme" Target="theme/theme1.xml"/>'+
   "</Relationships>";
+var XLSX_THEME = OOXML_XML_HEAD+'<a:theme xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" name="TGVCARE"><a:themeElements>'+
+  '<a:clrScheme name="TGVCARE"><a:dk1><a:sysClr val="windowText" lastClr="000000"/></a:dk1><a:lt1><a:sysClr val="window" lastClr="FFFFFF"/></a:lt1>'+
+  '<a:dk2><a:srgbClr val="211A2E"/></a:dk2><a:lt2><a:srgbClr val="F3F1FA"/></a:lt2>'+
+  '<a:accent1><a:srgbClr val="5B2A8C"/></a:accent1><a:accent2><a:srgbClr val="D6455A"/></a:accent2><a:accent3><a:srgbClr val="DB8A2E"/></a:accent3>'+
+  '<a:accent4><a:srgbClr val="2E9F6A"/></a:accent4><a:accent5><a:srgbClr val="2454C7"/></a:accent5><a:accent6><a:srgbClr val="0E8A8A"/></a:accent6>'+
+  '<a:hlink><a:srgbClr val="5B2A8C"/></a:hlink><a:folHlink><a:srgbClr val="431F66"/></a:folHlink></a:clrScheme>'+
+  '<a:fontScheme name="TGVCARE"><a:majorFont><a:latin typeface="Calibri"/><a:ea typeface=""/><a:cs typeface=""/></a:majorFont>'+
+  '<a:minorFont><a:latin typeface="Calibri"/><a:ea typeface=""/><a:cs typeface=""/></a:minorFont></a:fontScheme>'+
+  '<a:fmtScheme name="TGVCARE">'+
+  '<a:fillStyleLst><a:solidFill><a:schemeClr val="phClr"/></a:solidFill><a:solidFill><a:schemeClr val="phClr"/></a:solidFill><a:solidFill><a:schemeClr val="phClr"/></a:solidFill></a:fillStyleLst>'+
+  '<a:lnStyleLst><a:ln w="6350"><a:solidFill><a:schemeClr val="phClr"/></a:solidFill></a:ln><a:ln w="12700"><a:solidFill><a:schemeClr val="phClr"/></a:solidFill></a:ln><a:ln w="19050"><a:solidFill><a:schemeClr val="phClr"/></a:solidFill></a:ln></a:lnStyleLst>'+
+  '<a:effectStyleLst><a:effectStyle><a:effectLst/></a:effectStyle><a:effectStyle><a:effectLst/></a:effectStyle><a:effectStyle><a:effectLst/></a:effectStyle></a:effectStyleLst>'+
+  '<a:bgFillStyleLst><a:solidFill><a:schemeClr val="phClr"/></a:solidFill><a:solidFill><a:schemeClr val="phClr"/></a:solidFill><a:solidFill><a:schemeClr val="phClr"/></a:solidFill></a:bgFillStyleLst>'+
+  "</a:fmtScheme></a:themeElements></a:theme>";
 var XLSX_BADGE_COLORS = {
   red:    {bg:"FBE7EA", fg:"D6455A"},
   amber:  {bg:"FCEEDD", fg:"DB8A2E"},
@@ -2245,7 +2261,7 @@ function generateAnomaliesXlsx(){
   var sheetXml = OOXML_XML_HEAD+'<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">'+
     '<dimension ref="A1:'+lastCol+lastRow+'"/>'+
     '<sheetViews><sheetView workbookViewId="0"><pane ySplit="1" topLeftCell="A2" activePane="bottomLeft" state="frozen"/></sheetView></sheetViews>'+
-    '<sheetFormatPr defaultRowHeight="20" customHeight="1"/>'+
+    '<sheetFormatPr defaultRowHeight="20"/>'+
     cols+
     "<sheetData>"+headerRow+bodyRows+"</sheetData>"+
     '<autoFilter ref="A1:'+lastCol+'1"/>'+
@@ -2259,6 +2275,7 @@ function generateAnomaliesXlsx(){
     {name:"xl/workbook.xml", data: XLSX_WORKBOOK},
     {name:"xl/_rels/workbook.xml.rels", data: XLSX_WORKBOOK_RELS},
     {name:"xl/styles.xml", data: XLSX_STYLES},
+    {name:"xl/theme/theme1.xml", data: XLSX_THEME},
     {name:"xl/worksheets/sheet1.xml", data: sheetXml}
   ];
 
