@@ -167,6 +167,15 @@ tr.row-overdue{background:var(--p1-bg)}
 .toolbar select,.toolbar input{border:1px solid var(--line);border-radius:8px;padding:8px 10px;background:var(--card);color:var(--ink);font-size:13px}
 .toolbar input[type=search]{min-width:220px;flex:1}
 
+/* ---- multi-select filter chips ---- */
+.fgroup{margin-bottom:14px}
+.fgroup .flabel{font-size:11px;font-weight:800;letter-spacing:.04em;text-transform:uppercase;color:var(--mu);margin-bottom:7px}
+.fgroup .frow{display:flex;flex-wrap:wrap;gap:6px}
+.fbtn{border:1px solid var(--line);border-radius:100px;padding:6px 12px;font-size:12.5px;font-weight:600;background:var(--card);color:var(--mu);cursor:pointer}
+.fbtn:hover{border-color:var(--hi-solid);color:var(--ink)}
+.fbtn.on{background:var(--hi-solid);border-color:var(--hi-solid);color:#fff}
+.fbtn.allbtn{font-weight:800}
+
 /* ---- table ---- */
 .tblwrap{overflow-x:auto;border:1px solid var(--line);border-radius:14px;background:var(--card)}
 table.tbl{width:100%;border-collapse:collapse;font-size:13.5px;min-width:920px}
@@ -534,7 +543,7 @@ var S = {
     settings: { newOutil:"", newStatut:"", currentPin:"", newPin:"", newPin2:"" }
   },
   filters: { q:"", site:"all", outil:"all", statut:"all", priorite:"all" },
-  reportFilters: { site:"all", outil:"all", severite:"all", priorite:"all", statut:"all" },
+  reportFilters: { site:[], outil:[], severite:[], priorite:[], statut:[] },
   expanded: {},
   editingId: null,
   declareDone: false,
@@ -1396,6 +1405,17 @@ function filterSelect(path, current, values, allLabel, isPrio){
       return opt(v, lbl, current);
     }).join("")+"</select>";
 }
+function reportFilterGroup(key, label, options, labelMap){
+  var sel = S.reportFilters[key] || [];
+  var allOn = sel.length===0;
+  var chips = '<button type="button" class="fbtn allbtn'+(allOn?" on":"")+'" data-a="clear-report-filter" data-v="'+key+'">Tous</button>'+
+    options.map(function(o){
+      var on = sel.indexOf(o)!==-1;
+      var lbl = labelMap ? (labelMap[o]!==undefined?labelMap[o]:"Non priorisé") : (o===""?"Non renseigné":o);
+      return '<button type="button" class="fbtn'+(on?" on":"")+'" data-a="toggle-report-filter" data-v="'+key+'" data-id="'+esc(o)+'">'+esc(lbl)+"</button>";
+    }).join("");
+  return '<div class="fgroup"><div class="flabel">'+esc(label)+'</div><div class="frow">'+chips+"</div></div>";
+}
 
 /* ============================= DÉCLARATION ============================= */
 function resetDeclareForm(){
@@ -1967,13 +1987,11 @@ function adminRapport(){
   return '<div class="card pad noprint" style="margin-bottom:16px">'+
       '<div style="font-weight:800;margin-bottom:10px">Exporter</div>'+
       '<p class="mut small" style="margin-bottom:10px">Applique des filtres pour n’exporter/imprimer qu’une partie des anomalies (ex. un outil précis, une sévérité, un statut), ou laisse sur « tous ».</p>'+
-      '<div class="toolbar" style="margin-bottom:12px">'+
-        filterSelect("reportFilters.outil", rf.outil, ["all"].concat(S.settings.outils), "Tous les outils")+
-        filterSelect("reportFilters.site", rf.site, ["all"].concat(SITES), "Tous les sites")+
-        filterSelect("reportFilters.severite", rf.severite, ["all","Basse","Moyenne","Haute","Bloquante"], "Toutes sévérités")+
-        filterSelect("reportFilters.priorite", rf.priorite, ["all","P1","P2","P3",""], "Toutes priorités", true)+
-        filterSelect("reportFilters.statut", rf.statut, ["all"].concat(S.settings.statuts), "Tous les statuts")+
-      "</div>"+
+      reportFilterGroup("outil", "Outil", S.settings.outils)+
+      reportFilterGroup("site", "Site", SITES)+
+      reportFilterGroup("severite", "Sévérité", ["Basse","Moyenne","Haute","Bloquante"])+
+      reportFilterGroup("priorite", "Priorité", ["P1","P2","P3",""], PRIORITE_LABEL)+
+      reportFilterGroup("statut", "Statut", S.settings.statuts)+
       '<div class="btnrow">'+
         '<button class="btn bp" data-a="export-xlsx">'+ICON_XLSX+' Exporter en Excel ('+list.length+')</button>'+
         '<button class="btn" data-a="print-page">'+ICON_PRINT+' Imprimer / exporter en PDF</button>'+
@@ -2227,11 +2245,11 @@ var XLSX_COLUMNS = [
 function filteredReportAnomalies(){
   var f = S.reportFilters || {};
   return S.anomalies.filter(function(a){
-    if(f.outil && f.outil!=="all" && a.outil!==f.outil) return false;
-    if(f.site && f.site!=="all" && a.site!==f.site) return false;
-    if(f.severite && f.severite!=="all" && (a.severite||"")!==f.severite) return false;
-    if(f.priorite && f.priorite!=="all" && (a.priorite||"")!==f.priorite) return false;
-    if(f.statut && f.statut!=="all" && a.statut!==f.statut) return false;
+    if(f.outil && f.outil.length && f.outil.indexOf(a.outil)===-1) return false;
+    if(f.site && f.site.length && f.site.indexOf(a.site)===-1) return false;
+    if(f.severite && f.severite.length && f.severite.indexOf(a.severite||"")===-1) return false;
+    if(f.priorite && f.priorite.length && f.priorite.indexOf(a.priorite||"")===-1) return false;
+    if(f.statut && f.statut.length && f.statut.indexOf(a.statut)===-1) return false;
     return true;
   });
 }
@@ -2526,6 +2544,18 @@ function handleAction(a, v, id){
       break;
     case "print-page":
       window.print();
+      break;
+    case "toggle-report-filter": {
+      var arr = (S.reportFilters[v] || []).slice();
+      var idx = arr.indexOf(id);
+      if(idx>-1) arr.splice(idx,1); else arr.push(id);
+      S.reportFilters[v] = arr;
+      render();
+      break;
+    }
+    case "clear-report-filter":
+      S.reportFilters[v] = [];
+      render();
       break;
     case "export-xlsx":
       try{
