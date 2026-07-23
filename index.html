@@ -2251,7 +2251,7 @@ function generateAnomaliesXlsx(){
       var badge = xlsxBadgeStyleIdx(c.key, a[c.key]);
       return badge!=null ? badge : zebra;
     });
-    return xlsxRowXml(i+2, values, styles, 20);
+    return xlsxRowXml(i+2, values, styles);
   }).join("");
   var lastCol = xlsxColLetter(XLSX_COLUMNS.length);
   var lastRow = rows.length+1;
@@ -2476,30 +2476,28 @@ function handleAction(a, v, id){
         cp: (f.cp||"").trim(), notifyToken: "",
         historique: [{ts: nowISOTime(), auteur: f.declarant, texte: "Remontée initiale ("+f.site+")"}]
       };
-      var finishDeclare = function(){
-        S.anomalies.unshift(obj);
-        saveAnomaly(obj);
-        pushNotification(obj);
-        trackMyTicket(obj.id);
-        markMyTicketSeen(obj.id, obj.statut);
-        if(obj.cp) setMyCp(obj.cp);
-        S.lastDeclared = obj;
-        S.declareDone = true;
-        render();
-        toast("Ticket enregistré. Merci !");
-      };
+      S.anomalies.unshift(obj);
+      saveAnomaly(obj);
+      pushNotification(obj);
+      trackMyTicket(obj.id);
+      markMyTicketSeen(obj.id, obj.statut);
+      if(obj.cp) setMyCp(obj.cp);
+      S.lastDeclared = obj;
+      S.declareDone = true;
+      render();
+      toast("Ticket enregistré. Merci !");
+
       if(f.notifyMe || obj.cp){
         getFcmToken().then(function(token){
           if(token && obj.cp){
             registerUserToken(obj.cp, token)["catch"](function(){});
+          } else if(token){
+            obj.notifyToken = token;
+            saveAnomaly(obj);
           } else {
-            obj.notifyToken = token || "";
+            toast("Notifications non activées (permission refusée) : le ticket est enregistré normalement.", true);
           }
-          if(!token){ toast("Notifications non activées (permission refusée) : le ticket est enregistré normalement.", true); }
-          finishDeclare();
         });
-      } else {
-        finishDeclare();
       }
       break;
     }
