@@ -2108,18 +2108,49 @@ var XLSX_WORKBOOK_RELS = OOXML_XML_HEAD+'<Relationships xmlns="http://schemas.op
   '<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet1.xml"/>'+
   '<Relationship Id="rId2" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/>'+
   "</Relationships>";
-var XLSX_STYLES = OOXML_XML_HEAD+'<styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">'+
-  '<fonts count="2"><font><sz val="10"/><name val="Calibri"/></font><font><b/><sz val="10"/><color rgb="FFFFFFFF"/><name val="Calibri"/></font></fonts>'+
-  '<fills count="3"><fill><patternFill patternType="none"/></fill><fill><patternFill patternType="gray125"/></fill>'+
-  '<fill><patternFill patternType="solid"><fgColor rgb="FF5B2A8C"/><bgColor indexed="64"/></patternFill></fill></fills>'+
-  '<borders count="1"><border><left/><right/><top/><bottom/><diagonal/></border></borders>'+
-  '<cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs>'+
-  '<cellXfs count="2">'+
-    '<xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"/>'+
-    '<xf numFmtId="0" fontId="1" fillId="2" borderId="0" xfId="0" applyFont="1" applyFill="1"/>'+
-  "</cellXfs>"+
-  '<cellStyles count="1"><cellStyle name="Normal" xfId="0" builtinId="0"/></cellStyles>'+
-  "</styleSheet>";
+var XLSX_BADGE_COLORS = {
+  red:    {bg:"FBE7EA", fg:"D6455A"},
+  amber:  {bg:"FCEEDD", fg:"DB8A2E"},
+  yellow: {bg:"FBF4D6", fg:"B99A15"},
+  green:  {bg:"E4F6EC", fg:"2E9F6A"},
+  blue:   {bg:"EAF0FF", fg:"2454C7"},
+  teal:   {bg:"E1F5F5", fg:"0E8A8A"},
+  purple: {bg:"F1E7FA", fg:"431F66"},
+  grey:   {bg:"EDEFF4", fg:"8A93A8"}
+};
+var XLSX_BADGE_ORDER = ["red","amber","yellow","green","blue","teal","purple","grey"];
+var XLSX_STYLE_DEFAULT = 0, XLSX_STYLE_HEADER = 1, XLSX_STYLE_ZEBRA = 2;
+var XLSX_STYLE_BADGE = {};
+XLSX_BADGE_ORDER.forEach(function(name, i){ XLSX_STYLE_BADGE[name] = 3 + i; });
+var XLSX_STYLES = (function(){
+  var fonts = ['<font><sz val="10.5"/><color rgb="FF211A2E"/><name val="Calibri"/></font>',
+    '<font><b/><sz val="10.5"/><color rgb="FFFFFFFF"/><name val="Calibri"/></font>'];
+  var fills = ['<fill><patternFill patternType="none"/></fill>', '<fill><patternFill patternType="gray125"/></fill>',
+    '<fill><patternFill patternType="solid"><fgColor rgb="FF5B2A8C"/><bgColor indexed="64"/></patternFill></fill>',
+    '<fill><patternFill patternType="solid"><fgColor rgb="FFFAF8FD"/><bgColor indexed="64"/></patternFill></fill>'];
+  var cellXfs = [
+    '<xf numFmtId="0" fontId="0" fillId="0" borderId="1" xfId="0" applyBorder="1"><alignment vertical="center" wrapText="1"/></xf>',
+    '<xf numFmtId="0" fontId="1" fillId="2" borderId="1" xfId="0" applyFont="1" applyFill="1" applyBorder="1"><alignment vertical="center"/></xf>',
+    '<xf numFmtId="0" fontId="0" fillId="3" borderId="1" xfId="0" applyFill="1" applyBorder="1"><alignment vertical="center" wrapText="1"/></xf>'
+  ];
+  XLSX_BADGE_ORDER.forEach(function(name){
+    var c = XLSX_BADGE_COLORS[name];
+    var fontId = fonts.length, fillId = fills.length;
+    fonts.push('<font><b/><sz val="10.5"/><color rgb="FF'+c.fg+'"/><name val="Calibri"/></font>');
+    fills.push('<fill><patternFill patternType="solid"><fgColor rgb="FF'+c.bg+'"/><bgColor indexed="64"/></patternFill></fill>');
+    cellXfs.push('<xf numFmtId="0" fontId="'+fontId+'" fillId="'+fillId+'" borderId="1" xfId="0" applyFont="1" applyFill="1" applyBorder="1"><alignment horizontal="center" vertical="center"/></xf>');
+  });
+  return OOXML_XML_HEAD+'<styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">'+
+    '<fonts count="'+fonts.length+'">'+fonts.join("")+"</fonts>"+
+    '<fills count="'+fills.length+'">'+fills.join("")+"</fills>"+
+    '<borders count="2"><border><left/><right/><top/><bottom/><diagonal/></border>'+
+    '<border><left style="thin"><color rgb="FFE2E2EA"/></left><right style="thin"><color rgb="FFE2E2EA"/></right>'+
+    '<top style="thin"><color rgb="FFE2E2EA"/></top><bottom style="thin"><color rgb="FFE2E2EA"/></bottom><diagonal/></border></borders>'+
+    '<cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs>'+
+    '<cellXfs count="'+cellXfs.length+'">'+cellXfs.join("")+"</cellXfs>"+
+    '<cellStyles count="1"><cellStyle name="Normal" xfId="0" builtinId="0"/></cellStyles>'+
+    "</styleSheet>";
+})();
 function xlsxCore(){
   var now = new Date().toISOString().replace(/\.\d+Z$/,"Z");
   return OOXML_XML_HEAD+'<cp:coreProperties xmlns:cp="http://schemas.openxmlformats.org/package/2006/metadata/core-properties" xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:dcterms="http://purl.org/dc/terms/" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">'+
@@ -2134,13 +2165,28 @@ function xlsxColLetter(n){
   while(n>0){ var m = (n-1)%26; s = String.fromCharCode(65+m)+s; n = Math.floor((n-1)/26); }
   return s;
 }
-function xlsxRowXml(r, values, styleIdx){
+function xlsxRowXml(r, values, styles, height){
   var cells = values.map(function(v, i){
     var ref = xlsxColLetter(i+1)+r;
-    var sAttr = styleIdx ? ' s="'+styleIdx+'"' : "";
+    var s = Array.isArray(styles) ? styles[i] : styles;
+    var sAttr = s ? ' s="'+s+'"' : "";
     return '<c r="'+ref+'"'+sAttr+' t="inlineStr"><is><t xml:space="preserve">'+xmlEsc(v==null?"":v)+'</t></is></c>';
   }).join("");
-  return '<row r="'+r+'">'+cells+'</row>';
+  var hAttr = height ? ' ht="'+height+'" customHeight="1"' : "";
+  return '<row r="'+r+'"'+hAttr+'>'+cells+'</row>';
+}
+function xlsxBadgeStyleIdx(colKey, rawValue){
+  var cat = null;
+  if(colKey==="priorite"){
+    cat = rawValue==="P1" ? "red" : rawValue==="P2" ? "amber" : rawValue==="P3" ? "yellow" : "grey";
+  } else if(colKey==="severite"){
+    if(!rawValue) return null;
+    cat = (rawValue==="Bloquante"||rawValue==="Haute") ? "red" : rawValue==="Moyenne" ? "amber" : rawValue==="Basse" ? "yellow" : "grey";
+  } else if(colKey==="statut"){
+    var sc = statutCategory(rawValue);
+    cat = sc==="done" ? "green" : sc==="info" ? "blue" : sc==="recette" ? "teal" : sc==="wait" ? "amber" : sc==="new" ? "purple" : "grey";
+  }
+  return cat ? XLSX_STYLE_BADGE[cat] : null;
 }
 var XLSX_COLUMNS = [
   {key:"outil", label:"Outil", width:16},
@@ -2175,15 +2221,21 @@ function filteredReportAnomalies(){
 }
 function generateAnomaliesXlsx(){
   var rows = filteredReportAnomalies();
-  var headerRow = xlsxRowXml(1, XLSX_COLUMNS.map(function(c){ return c.label; }), 1);
+  var headerStyles = XLSX_COLUMNS.map(function(){ return XLSX_STYLE_HEADER; });
+  var headerRow = xlsxRowXml(1, XLSX_COLUMNS.map(function(c){ return c.label; }), headerStyles, 22);
   var bodyRows = rows.map(function(a, i){
+    var zebra = (i % 2 === 1) ? XLSX_STYLE_ZEBRA : XLSX_STYLE_DEFAULT;
     var values = XLSX_COLUMNS.map(function(c){
       var v = a[c.key];
       if(c.map) return c.map(v);
       if(c.fmt==="date") return fmtDate(v);
       return v==null ? "" : v;
     });
-    return xlsxRowXml(i+2, values, 0);
+    var styles = XLSX_COLUMNS.map(function(c){
+      var badge = xlsxBadgeStyleIdx(c.key, a[c.key]);
+      return badge!=null ? badge : zebra;
+    });
+    return xlsxRowXml(i+2, values, styles, 20);
   }).join("");
   var lastCol = xlsxColLetter(XLSX_COLUMNS.length);
   var lastRow = rows.length+1;
@@ -2193,6 +2245,7 @@ function generateAnomaliesXlsx(){
   var sheetXml = OOXML_XML_HEAD+'<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">'+
     '<dimension ref="A1:'+lastCol+lastRow+'"/>'+
     '<sheetViews><sheetView workbookViewId="0"><pane ySplit="1" topLeftCell="A2" activePane="bottomLeft" state="frozen"/></sheetView></sheetViews>'+
+    '<sheetFormatPr defaultRowHeight="20" customHeight="1"/>'+
     cols+
     "<sheetData>"+headerRow+bodyRows+"</sheetData>"+
     '<autoFilter ref="A1:'+lastCol+'1"/>'+
