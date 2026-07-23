@@ -1272,7 +1272,6 @@ var RCAD_LOGO_IMG = '<img class="applogo" src="data:image/png;base64,iVBORw0KGgo
 var THEME_LABEL = {auto:"Auto", light:"Clair", dark:"Sombre"};
 var ICON_BRIEF = '<svg width="16" height="16" viewBox="0 0 20 20" fill="none" style="vertical-align:-3px"><rect x="2" y="3.5" width="16" height="10.5" rx="1.6" stroke="currentColor" stroke-width="1.5"/><line x1="7" y1="17" x2="13" y2="17" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><line x1="10" y1="14" x2="10" y2="17" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>';
 var ICON_PRINT = '<svg width="16" height="16" viewBox="0 0 20 20" fill="none" style="vertical-align:-3px"><path d="M5.5 7V3h9v4" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/><rect x="2.5" y="7" width="15" height="7" rx="1.4" stroke="currentColor" stroke-width="1.5"/><rect x="5.5" y="11" width="9" height="6" rx="0.8" stroke="currentColor" stroke-width="1.5"/></svg>';
-var ICON_PPTX = '<svg width="16" height="16" viewBox="0 0 20 20" fill="none" style="vertical-align:-3px"><rect x="2" y="3" width="16" height="12" rx="1.6" stroke="currentColor" stroke-width="1.5"/><path d="M5.5 12.5v-3M10 12.5V6.5M14.5 12.5v-5.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>';
 var ICON_XLSX = '<svg width="16" height="16" viewBox="0 0 20 20" fill="none" style="vertical-align:-3px"><rect x="2" y="3" width="16" height="12" rx="1.6" stroke="currentColor" stroke-width="1.5"/><path d="M2 7.5h16M7 3v12" stroke="currentColor" stroke-width="1.5"/><path d="M8.7 9.3l3 3.4M11.7 9.3l-3 3.4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>';
 function bellIconHTML(count){
   var badge = count ? '<circle cx="14.3" cy="4.3" r="4.1" fill="#f5303f"/><text x="14.3" y="4.5" text-anchor="middle" dominant-baseline="central" font-size="5.6" font-weight="700" fill="#fff">'+(count>9?"9+":count)+"</text>" : "";
@@ -1951,7 +1950,8 @@ function adminReglages(){
   "</div>";
 }
 function adminRapport(){
-  var list = S.anomalies.filter(function(a){ return STATUTS_OUVERTS.indexOf(a.statut)===-1; });
+  var rf = S.reportFilters;
+  var list = filteredReportAnomalies();
   var groups = [["P1","Bloquant"],["P2","Majeur"],["P3","Modéré"],["","Non priorisé"]];
   var k = computeKPIs(S.anomalies);
   var monthLabel = new Date().toLocaleDateString("fr-FR", {month:"long", year:"numeric"});
@@ -1964,11 +1964,9 @@ function adminRapport(){
         "<td>"+fmtDate(a.echeance)+"</td><td>"+statutChip(a.statut)+"</td><td>"+esc(a.pilote||"–")+"</td></tr>";
     }).join("");
   }).join("");
-  var rf = S.reportFilters;
-  var xlsxCount = filteredReportAnomalies().length;
   return '<div class="card pad noprint" style="margin-bottom:16px">'+
-      '<div style="font-weight:800;margin-bottom:10px">Exporter en fichier Excel</div>'+
-      '<p class="mut small" style="margin-bottom:10px">Applique des filtres pour n’exporter qu’une partie des anomalies (ex. un outil précis, une sévérité, un statut), ou laisse sur « tous » pour tout exporter.</p>'+
+      '<div style="font-weight:800;margin-bottom:10px">Exporter</div>'+
+      '<p class="mut small" style="margin-bottom:10px">Applique des filtres pour n’exporter/imprimer qu’une partie des anomalies (ex. un outil précis, une sévérité, un statut), ou laisse sur « tous ».</p>'+
       '<div class="toolbar" style="margin-bottom:12px">'+
         filterSelect("reportFilters.outil", rf.outil, ["all"].concat(S.settings.outils), "Tous les outils")+
         filterSelect("reportFilters.site", rf.site, ["all"].concat(SITES), "Tous les sites")+
@@ -1976,9 +1974,11 @@ function adminRapport(){
         filterSelect("reportFilters.priorite", rf.priorite, ["all","P1","P2","P3",""], "Toutes priorités", true)+
         filterSelect("reportFilters.statut", rf.statut, ["all"].concat(S.settings.statuts), "Tous les statuts")+
       "</div>"+
-      '<div class="btnrow"><button class="btn bp" data-a="export-xlsx">'+ICON_XLSX+' Exporter en Excel ('+xlsxCount+')</button></div>'+
+      '<div class="btnrow">'+
+        '<button class="btn bp" data-a="export-xlsx">'+ICON_XLSX+' Exporter en Excel ('+list.length+')</button>'+
+        '<button class="btn" data-a="print-page">'+ICON_PRINT+' Imprimer / exporter en PDF</button>'+
+      "</div>"+
     "</div>"+
-    '<div class="btnrow noprint" style="margin-bottom:16px"><button class="btn" data-a="print-page">'+ICON_PRINT+' Imprimer / exporter en PDF</button><button class="btn" data-a="export-pptx">'+ICON_PPTX+' Exporter en PowerPoint</button></div>'+
     '<div class="card pad">'+
       '<div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px">'+
         '<div><h2 style="font-size:18px">Point de suivi des anomalies prioritaires</h2><p class="mut small">Édition '+esc(monthLabel)+" · UO Sud-Est · Direction TGV CARE</p></div>"+
@@ -2078,209 +2078,14 @@ function buildZip(files, mimeType){
   return new Blob(localParts.concat(centralParts, [eocd]), {type: mimeType || "application/vnd.openxmlformats-officedocument.presentationml.presentation"});
 }
 
-function pptxEsc(s){
+function xmlEsc(s){
   return String(s==null?"":s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;").replace(/'/g,"&apos;");
 }
-function pptxTrunc(s, n){ s = String(s||""); return s.length>n ? s.slice(0,n-1)+"…" : s; }
-var PPTX_XML_HEAD = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n';
-
-function pptxContentTypes(slideCount){
-  var overrides = "";
-  for(var i=1;i<=slideCount;i++){ overrides += '<Override PartName="/ppt/slides/slide'+i+'.xml" ContentType="application/vnd.openxmlformats-officedocument.presentationml.slide+xml"/>'; }
-  return PPTX_XML_HEAD+'<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">'+
-    '<Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>'+
-    '<Default Extension="xml" ContentType="application/xml"/>'+
-    '<Override PartName="/ppt/presentation.xml" ContentType="application/vnd.openxmlformats-officedocument.presentationml.presentation.main+xml"/>'+
-    '<Override PartName="/ppt/slideMasters/slideMaster1.xml" ContentType="application/vnd.openxmlformats-officedocument.presentationml.slideMaster+xml"/>'+
-    '<Override PartName="/ppt/slideLayouts/slideLayout1.xml" ContentType="application/vnd.openxmlformats-officedocument.presentationml.slideLayout+xml"/>'+
-    '<Override PartName="/ppt/theme/theme1.xml" ContentType="application/vnd.openxmlformats-officedocument.theme+xml"/>'+
-    overrides+
-    '<Override PartName="/docProps/core.xml" ContentType="application/vnd.openxmlformats-package.core-properties+xml"/>'+
-    '<Override PartName="/docProps/app.xml" ContentType="application/vnd.openxmlformats-officedocument.extended-properties+xml"/>'+
-    "</Types>";
-}
-var PPTX_ROOT_RELS = PPTX_XML_HEAD+'<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">'+
-  '<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="ppt/presentation.xml"/>'+
-  '<Relationship Id="rId2" Type="http://schemas.openxmlformats.org/package/2006/relationships/metadata/core-properties" Target="docProps/core.xml"/>'+
-  '<Relationship Id="rId3" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/extended-properties" Target="docProps/app.xml"/>'+
-  "</Relationships>";
-function pptxCore(title){
-  var now = new Date().toISOString().replace(/\.\d+Z$/,"Z");
-  return PPTX_XML_HEAD+'<cp:coreProperties xmlns:cp="http://schemas.openxmlformats.org/package/2006/metadata/core-properties" xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:dcterms="http://purl.org/dc/terms/" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">'+
-    "<dc:title>"+pptxEsc(title)+"</dc:title>"+
-    "<dc:creator>Suivi Anomalies Outils</dc:creator><cp:lastModifiedBy>Suivi Anomalies Outils</cp:lastModifiedBy>"+
-    '<dcterms:created xsi:type="dcterms:W3CDTF">'+now+'</dcterms:created>'+
-    '<dcterms:modified xsi:type="dcterms:W3CDTF">'+now+"</dcterms:modified>"+
-    "</cp:coreProperties>";
-}
-function pptxApp(slideCount){
-  return PPTX_XML_HEAD+'<Properties xmlns="http://schemas.openxmlformats.org/officeDocument/2006/extended-properties">'+
-    "<Application>Suivi Anomalies Outils</Application><PresentationFormat>Widescreen</PresentationFormat>"+
-    "<Slides>"+slideCount+"</Slides><Company>TGV CARE</Company></Properties>";
-}
-function pptxPresentation(slideCount){
-  var ids = "";
-  for(var i=1;i<=slideCount;i++){ ids += '<p:sldId id="'+(255+i)+'" r:id="rId'+(i+1)+'"/>'; }
-  return PPTX_XML_HEAD+'<p:presentation xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main">'+
-    '<p:sldMasterIdLst><p:sldMasterId id="2147483648" r:id="rId1"/></p:sldMasterIdLst>'+
-    "<p:sldIdLst>"+ids+"</p:sldIdLst>"+
-    '<p:sldSz cx="12192000" cy="6858000" type="screen16x9"/><p:notesSz cx="6858000" cy="9144000"/>'+
-    "</p:presentation>";
-}
-function pptxPresentationRels(slideCount){
-  var rels = "";
-  for(var i=1;i<=slideCount;i++){ rels += '<Relationship Id="rId'+(i+1)+'" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/slide" Target="slides/slide'+i+'.xml"/>'; }
-  return PPTX_XML_HEAD+'<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">'+
-    '<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/slideMaster" Target="slideMasters/slideMaster1.xml"/>'+
-    rels+
-    "</Relationships>";
-}
-var PPTX_THEME = PPTX_XML_HEAD+'<a:theme xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" name="TGVCARE"><a:themeElements>'+
-  '<a:clrScheme name="TGVCARE"><a:dk1><a:sysClr val="windowText" lastClr="000000"/></a:dk1><a:lt1><a:sysClr val="window" lastClr="FFFFFF"/></a:lt1>'+
-  '<a:dk2><a:srgbClr val="211A2E"/></a:dk2><a:lt2><a:srgbClr val="F3F1FA"/></a:lt2>'+
-  '<a:accent1><a:srgbClr val="5B2A8C"/></a:accent1><a:accent2><a:srgbClr val="D6455A"/></a:accent2><a:accent3><a:srgbClr val="DB8A2E"/></a:accent3>'+
-  '<a:accent4><a:srgbClr val="2E9F6A"/></a:accent4><a:accent5><a:srgbClr val="2454C7"/></a:accent5><a:accent6><a:srgbClr val="0E8A8A"/></a:accent6>'+
-  '<a:hlink><a:srgbClr val="5B2A8C"/></a:hlink><a:folHlink><a:srgbClr val="431F66"/></a:folHlink></a:clrScheme>'+
-  '<a:fontScheme name="TGVCARE"><a:majorFont><a:latin typeface="Calibri"/><a:ea typeface=""/><a:cs typeface=""/></a:majorFont>'+
-  '<a:minorFont><a:latin typeface="Calibri"/><a:ea typeface=""/><a:cs typeface=""/></a:minorFont></a:fontScheme>'+
-  '<a:fmtScheme name="TGVCARE">'+
-  '<a:fillStyleLst><a:solidFill><a:schemeClr val="phClr"/></a:solidFill><a:solidFill><a:schemeClr val="phClr"/></a:solidFill><a:solidFill><a:schemeClr val="phClr"/></a:solidFill></a:fillStyleLst>'+
-  '<a:lnStyleLst><a:ln w="6350"><a:solidFill><a:schemeClr val="phClr"/></a:solidFill></a:ln><a:ln w="12700"><a:solidFill><a:schemeClr val="phClr"/></a:solidFill></a:ln><a:ln w="19050"><a:solidFill><a:schemeClr val="phClr"/></a:solidFill></a:ln></a:lnStyleLst>'+
-  '<a:effectStyleLst><a:effectStyle><a:effectLst/></a:effectStyle><a:effectStyle><a:effectLst/></a:effectStyle><a:effectStyle><a:effectLst/></a:effectStyle></a:effectStyleLst>'+
-  '<a:bgFillStyleLst><a:solidFill><a:schemeClr val="phClr"/></a:solidFill><a:solidFill><a:schemeClr val="phClr"/></a:solidFill><a:solidFill><a:schemeClr val="phClr"/></a:solidFill></a:bgFillStyleLst>'+
-  "</a:fmtScheme></a:themeElements></a:theme>";
-var PPTX_SLIDE_MASTER = PPTX_XML_HEAD+'<p:sldMaster xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main">'+
-  '<p:cSld><p:bg><p:bgRef idx="1001"><a:schemeClr val="bg1"/></p:bgRef></p:bg>'+
-  '<p:spTree><p:nvGrpSpPr><p:cNvPr id="1" name=""/><p:cNvGrpSpPr/><p:nvPr/></p:nvGrpSpPr><p:grpSpPr/></p:spTree></p:cSld>'+
-  '<p:clrMap bg1="lt1" tx1="dk1" bg2="lt2" tx2="dk2" accent1="accent1" accent2="accent2" accent3="accent3" accent4="accent4" accent5="accent5" accent6="accent6" hlink="hlink" folHlink="folHlink"/>'+
-  '<p:sldLayoutIdLst><p:sldLayoutId id="2147483649" r:id="rId1"/></p:sldLayoutIdLst>'+
-  "</p:sldMaster>";
-var PPTX_SLIDE_MASTER_RELS = PPTX_XML_HEAD+'<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">'+
-  '<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/slideLayout" Target="../slideLayouts/slideLayout1.xml"/>'+
-  '<Relationship Id="rId2" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/theme" Target="../theme/theme1.xml"/>'+
-  "</Relationships>";
-var PPTX_SLIDE_LAYOUT = PPTX_XML_HEAD+'<p:sldLayout xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main" type="blank" preserve="1">'+
-  '<p:cSld name="Blank"><p:spTree><p:nvGrpSpPr><p:cNvPr id="1" name=""/><p:cNvGrpSpPr/><p:nvPr/></p:nvGrpSpPr><p:grpSpPr/></p:spTree></p:cSld>'+
-  "<p:clrMapOvr><a:masterClrMapping/></p:clrMapOvr></p:sldLayout>";
-var PPTX_SLIDE_LAYOUT_RELS = PPTX_XML_HEAD+'<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">'+
-  '<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/slideMaster" Target="../slideMasters/slideMaster1.xml"/>'+
-  "</Relationships>";
-var PPTX_SLIDE_RELS = PPTX_XML_HEAD+'<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">'+
-  '<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/slideLayout" Target="../slideLayouts/slideLayout1.xml"/>'+
-  "</Relationships>";
-
-function pptxTextBoxXml(id, x, y, cx, cy, runs, align){
-  var paras = runs.map(function(line){
-    var rs = line.map(function(r){
-      var attrs = ' lang="fr-FR" sz="'+r.sz+'"'+(r.b?' b="1"':"")+' dirty="0"';
-      return '<a:r><a:rPr'+attrs+'><a:solidFill><a:srgbClr val="'+(r.color||"211A2E")+'"/></a:solidFill></a:rPr><a:t>'+pptxEsc(r.t)+"</a:t></a:r>";
-    }).join("");
-    return '<a:p><a:pPr algn="'+(align||"l")+'"/>'+rs+"</a:p>";
-  }).join("");
-  return '<p:sp><p:nvSpPr><p:cNvPr id="'+id+'" name="TextBox'+id+'"/><p:cNvSpPr txBox="1"/><p:nvPr/></p:nvSpPr>'+
-    '<p:spPr><a:xfrm><a:off x="'+x+'" y="'+y+'"/><a:ext cx="'+cx+'" cy="'+cy+'"/></a:xfrm><a:prstGeom prst="rect"><a:avLst/></a:prstGeom><a:noFill/></p:spPr>'+
-    '<p:txBody><a:bodyPr wrap="square" lIns="0" tIns="0" rIns="0" bIns="0"/><a:lstStyle/>'+paras+"</p:txBody></p:sp>";
-}
-function pptxTcXml(text, sz, bold, color, fill){
-  var fillXml = fill ? ('<a:solidFill><a:srgbClr val="'+fill+'"/></a:solidFill>') : "<a:noFill/>";
-  return '<a:tc><a:txBody><a:bodyPr wrap="square" lIns="45720" rIns="45720" tIns="18288" bIns="18288" anchor="ctr"/><a:lstStyle/>'+
-    '<a:p><a:r><a:rPr lang="fr-FR" sz="'+sz+'"'+(bold?' b="1"':"")+' dirty="0"><a:solidFill><a:srgbClr val="'+color+'"/></a:solidFill></a:rPr><a:t>'+pptxEsc(text)+"</a:t></a:r></a:p>"+
-    "</a:txBody><a:tcPr marL='45720' marR='45720' marT='18288' marB='18288'>"+fillXml+"</a:tcPr></a:tc>";
-}
-function pptxTableSlideXml(headerLabel, headerColor, headers, colWidths, rows){
-  var tableW = colWidths.reduce(function(a,b){ return a+b; }, 0);
-  var tableX = Math.round((12192000-tableW)/2);
-  var headerRow = '<a:tr h="330000">'+headers.map(function(h){ return pptxTcXml(h, 1000, true, "FFFFFF", headerColor); }).join("")+"</a:tr>";
-  var dataRows = rows.map(function(r, idx){
-    var fill = idx%2===0 ? "F7F5FC" : "FFFFFF";
-    return '<a:tr h="420000">'+r.map(function(cell){ return pptxTcXml(cell, 950, false, "211A2E", fill); }).join("")+"</a:tr>";
-  }).join("");
-  var gridCols = colWidths.map(function(w){ return '<a:gridCol w="'+w+'"/>'; }).join("");
-  var tableY = 1150000;
-  var table = '<p:graphicFrame><p:nvGraphicFramePr><p:cNvPr id="3" name="Tableau"/><p:cNvGraphicFramePr><a:graphicFrameLocks noGrp="1"/></p:cNvGraphicFramePr><p:nvPr/></p:nvGraphicFramePr>'+
-    '<p:xfrm><a:off x="'+tableX+'" y="'+tableY+'"/><a:ext cx="'+tableW+'" cy="1000000"/></p:xfrm>'+
-    '<a:graphic><a:graphicData uri="http://schemas.openxmlformats.org/drawingml/2006/table">'+
-    '<a:tbl><a:tblPr firstRow="1" bandRow="1"/><a:tblGrid>'+gridCols+"</a:tblGrid>"+headerRow+dataRows+"</a:tbl>"+
-    "</a:graphicData></a:graphic></p:graphicFrame>";
-  var title = pptxTextBoxXml(2, 457200, 300000, 11277600, 600000, [[{t:headerLabel, sz:2000, b:true, color:"211A2E"}]]);
-  return PPTX_XML_HEAD+'<p:sld xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main">'+
-    '<p:cSld><p:spTree><p:nvGrpSpPr><p:cNvPr id="1" name=""/><p:cNvGrpSpPr/><p:nvPr/></p:nvGrpSpPr><p:grpSpPr/>'+
-    title+table+
-    "</p:spTree></p:cSld><p:clrMapOvr><a:masterClrMapping/></p:clrMapOvr></p:sld>";
-}
-function pptxTitleSlideXml(k, monthLabel){
-  var title = pptxTextBoxXml(2, 685800, 2000000, 10820400, 900000, [[{t:"Point de suivi des anomalies prioritaires", sz:3200, b:true, color:"211A2E"}]]);
-  var subtitle = pptxTextBoxXml(3, 685800, 2950000, 10820400, 500000, [[{t:"Édition "+monthLabel+" · UO Sud-Est · Direction TGV CARE", sz:1400, color:"6D6482"}]]);
-  var stats = pptxTextBoxXml(4, 685800, 3900000, 10820400, 700000, [[
-    {t:k.total+" anomalies suivies    ", sz:1400, b:true, color:"5B2A8C"},
-    {t:k.ouverts+" en cours    ", sz:1400, b:true, color:"D6455A"},
-    {t:k.mep+" MEP réalisées    ", sz:1400, b:true, color:"2E9F6A"},
-    {t:k.taux+"% taux de résolution", sz:1400, b:true, color:"2E9F6A"}
-  ]]);
-  return PPTX_XML_HEAD+'<p:sld xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main">'+
-    '<p:cSld><p:spTree><p:nvGrpSpPr><p:cNvPr id="1" name=""/><p:cNvGrpSpPr/><p:nvPr/></p:nvGrpSpPr><p:grpSpPr/>'+
-    title+subtitle+stats+
-    "</p:spTree></p:cSld><p:clrMapOvr><a:masterClrMapping/></p:clrMapOvr></p:sld>";
-}
-function chunk(arr, n){
-  var out = [];
-  for(var i=0;i<arr.length;i+=n){ out.push(arr.slice(i,i+n)); }
-  return out;
-}
-function generateComitologiePptx(){
-  var list = S.anomalies.filter(function(a){ return STATUTS_OUVERTS.indexOf(a.statut)===-1; });
-  var groups = [["P1","P1 · Bloquant","C93E52"],["P2","P2 · Majeur","C77A28"],["P3","P3 · Modéré","B99A15"],["","Non priorisé","8A93A8"]];
-  var k = computeKPIs(S.anomalies);
-  var monthLabel = new Date().toLocaleDateString("fr-FR", {month:"long", year:"numeric"});
-  var headers = ["Outil","Anomalie / irritant","Correctif prévu / en cours","Contournement terrain","Échéance","Statut","Pilote"];
-  var colWidths = [1300000,2750000,1950000,1950000,900000,1450000,940000];
-
-  var slidesXml = [pptxTitleSlideXml(k, monthLabel)];
-  groups.forEach(function(g){
-    var rows = list.filter(function(a){ return (a.priorite||"")===g[0]; });
-    if(!rows.length) return;
-    var pages = chunk(rows, 7);
-    pages.forEach(function(pageRows, idx){
-      var label = g[1] + (pages.length>1 ? " ("+(idx+1)+"/"+pages.length+")" : "");
-      var tableRows = pageRows.map(function(a){
-        return [a.outil, pptxTrunc(a.descriptif,90), pptxTrunc(a.correctif||"–",70), pptxTrunc(a.contournement||"–",70), fmtDate(a.echeance), a.statut, a.pilote||"–"];
-      });
-      slidesXml.push(pptxTableSlideXml(label, g[2], headers, colWidths, tableRows));
-    });
-  });
-  if(slidesXml.length===1){
-    slidesXml.push(pptxTableSlideXml("Aucune anomalie active", "8A93A8", headers, colWidths, []));
-  }
-
-  var files = [
-    {name:"[Content_Types].xml", data: pptxContentTypes(slidesXml.length)},
-    {name:"_rels/.rels", data: PPTX_ROOT_RELS},
-    {name:"docProps/core.xml", data: pptxCore("Point de suivi des anomalies prioritaires — "+monthLabel)},
-    {name:"docProps/app.xml", data: pptxApp(slidesXml.length)},
-    {name:"ppt/presentation.xml", data: pptxPresentation(slidesXml.length)},
-    {name:"ppt/_rels/presentation.xml.rels", data: pptxPresentationRels(slidesXml.length)},
-    {name:"ppt/theme/theme1.xml", data: PPTX_THEME},
-    {name:"ppt/slideMasters/slideMaster1.xml", data: PPTX_SLIDE_MASTER},
-    {name:"ppt/slideMasters/_rels/slideMaster1.xml.rels", data: PPTX_SLIDE_MASTER_RELS},
-    {name:"ppt/slideLayouts/slideLayout1.xml", data: PPTX_SLIDE_LAYOUT},
-    {name:"ppt/slideLayouts/_rels/slideLayout1.xml.rels", data: PPTX_SLIDE_LAYOUT_RELS}
-  ];
-  slidesXml.forEach(function(xml, i){
-    files.push({name:"ppt/slides/slide"+(i+1)+".xml", data: xml});
-    files.push({name:"ppt/slides/_rels/slide"+(i+1)+".xml.rels", data: PPTX_SLIDE_RELS});
-  });
-
-  var blob = buildZip(files);
-  var url = URL.createObjectURL(blob);
-  var a = document.createElement("a");
-  a.href = url; a.download = "Point-suivi-anomalies-"+todayISO()+".pptx";
-  document.body.appendChild(a); a.click(); document.body.removeChild(a);
-  setTimeout(function(){ URL.revokeObjectURL(url); }, 4000);
-}
+var OOXML_XML_HEAD = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n';
 
 /* ============================= EXPORT EXCEL (ZIP + OOXML fait maison) ============================= */
 var XLSX_MIME = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
-var XLSX_CONTENT_TYPES = PPTX_XML_HEAD+'<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">'+
+var XLSX_CONTENT_TYPES = OOXML_XML_HEAD+'<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">'+
   '<Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>'+
   '<Default Extension="xml" ContentType="application/xml"/>'+
   '<Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/>'+
@@ -2289,21 +2094,21 @@ var XLSX_CONTENT_TYPES = PPTX_XML_HEAD+'<Types xmlns="http://schemas.openxmlform
   '<Override PartName="/docProps/core.xml" ContentType="application/vnd.openxmlformats-package.core-properties+xml"/>'+
   '<Override PartName="/docProps/app.xml" ContentType="application/vnd.openxmlformats-officedocument.extended-properties+xml"/>'+
   "</Types>";
-var XLSX_ROOT_RELS = PPTX_XML_HEAD+'<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">'+
+var XLSX_ROOT_RELS = OOXML_XML_HEAD+'<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">'+
   '<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/>'+
   '<Relationship Id="rId2" Type="http://schemas.openxmlformats.org/package/2006/relationships/metadata/core-properties" Target="docProps/core.xml"/>'+
   '<Relationship Id="rId3" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/extended-properties" Target="docProps/app.xml"/>'+
   "</Relationships>";
-var XLSX_APP = PPTX_XML_HEAD+'<Properties xmlns="http://schemas.openxmlformats.org/officeDocument/2006/extended-properties">'+
+var XLSX_APP = OOXML_XML_HEAD+'<Properties xmlns="http://schemas.openxmlformats.org/officeDocument/2006/extended-properties">'+
   "<Application>Suivi Anomalies Outils</Application><Company>TGV CARE</Company></Properties>";
-var XLSX_WORKBOOK = PPTX_XML_HEAD+'<workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">'+
+var XLSX_WORKBOOK = OOXML_XML_HEAD+'<workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">'+
   '<sheets><sheet name="Anomalies" sheetId="1" r:id="rId1"/></sheets>'+
   "</workbook>";
-var XLSX_WORKBOOK_RELS = PPTX_XML_HEAD+'<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">'+
+var XLSX_WORKBOOK_RELS = OOXML_XML_HEAD+'<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">'+
   '<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet1.xml"/>'+
   '<Relationship Id="rId2" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/>'+
   "</Relationships>";
-var XLSX_STYLES = PPTX_XML_HEAD+'<styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">'+
+var XLSX_STYLES = OOXML_XML_HEAD+'<styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">'+
   '<fonts count="2"><font><sz val="10"/><name val="Calibri"/></font><font><b/><sz val="10"/><color rgb="FFFFFFFF"/><name val="Calibri"/></font></fonts>'+
   '<fills count="3"><fill><patternFill patternType="none"/></fill><fill><patternFill patternType="gray125"/></fill>'+
   '<fill><patternFill patternType="solid"><fgColor rgb="FF5B2A8C"/><bgColor indexed="64"/></patternFill></fill></fills>'+
@@ -2317,7 +2122,7 @@ var XLSX_STYLES = PPTX_XML_HEAD+'<styleSheet xmlns="http://schemas.openxmlformat
   "</styleSheet>";
 function xlsxCore(){
   var now = new Date().toISOString().replace(/\.\d+Z$/,"Z");
-  return PPTX_XML_HEAD+'<cp:coreProperties xmlns:cp="http://schemas.openxmlformats.org/package/2006/metadata/core-properties" xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:dcterms="http://purl.org/dc/terms/" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">'+
+  return OOXML_XML_HEAD+'<cp:coreProperties xmlns:cp="http://schemas.openxmlformats.org/package/2006/metadata/core-properties" xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:dcterms="http://purl.org/dc/terms/" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">'+
     "<dc:title>Suivi des anomalies Outils</dc:title>"+
     "<dc:creator>Suivi Anomalies Outils</dc:creator><cp:lastModifiedBy>Suivi Anomalies Outils</cp:lastModifiedBy>"+
     '<dcterms:created xsi:type="dcterms:W3CDTF">'+now+'</dcterms:created>'+
@@ -2333,7 +2138,7 @@ function xlsxRowXml(r, values, styleIdx){
   var cells = values.map(function(v, i){
     var ref = xlsxColLetter(i+1)+r;
     var sAttr = styleIdx ? ' s="'+styleIdx+'"' : "";
-    return '<c r="'+ref+'"'+sAttr+' t="inlineStr"><is><t xml:space="preserve">'+pptxEsc(v==null?"":v)+'</t></is></c>';
+    return '<c r="'+ref+'"'+sAttr+' t="inlineStr"><is><t xml:space="preserve">'+xmlEsc(v==null?"":v)+'</t></is></c>';
   }).join("");
   return '<row r="'+r+'">'+cells+'</row>';
 }
@@ -2385,7 +2190,7 @@ function generateAnomaliesXlsx(){
   var cols = "<cols>"+XLSX_COLUMNS.map(function(c, i){
     return '<col min="'+(i+1)+'" max="'+(i+1)+'" width="'+c.width+'" customWidth="1"/>';
   }).join("")+"</cols>";
-  var sheetXml = PPTX_XML_HEAD+'<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">'+
+  var sheetXml = OOXML_XML_HEAD+'<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">'+
     '<dimension ref="A1:'+lastCol+lastRow+'"/>'+
     '<sheetViews><sheetView workbookViewId="0"><pane ySplit="1" topLeftCell="A2" activePane="bottomLeft" state="frozen"/></sheetView></sheetViews>'+
     cols+
@@ -2653,10 +2458,6 @@ function handleAction(a, v, id){
       break;
     case "print-page":
       window.print();
-      break;
-    case "export-pptx":
-      try{ generateComitologiePptx(); toast("PowerPoint généré."); }
-      catch(e){ toast("Erreur lors de la génération : "+e.message, true); }
       break;
     case "export-xlsx":
       try{
