@@ -187,6 +187,17 @@ tr.row-overdue{background:var(--p1-bg)}
 .msel-opt.on .msel-check svg{display:block}
 .msel-sep{height:1px;background:var(--line);margin:5px 3px}
 
+/* ---- filters accordion ---- */
+.racc{border:1px solid var(--line);border-radius:10px;overflow:hidden;margin-bottom:18px;transition:overflow 0s}
+.racc.open{overflow:visible;transition:overflow 0s .3s}
+.racc-head{width:100%;display:flex;align-items:center;justify-content:space-between;gap:10px;padding:13px 16px;background:var(--hi-solid);color:#fff;border:none;border-radius:0;font-size:14px;font-weight:700;cursor:pointer}
+.racc-head:hover{background:var(--hi-solid-d)}
+.racc-head .chev{flex-shrink:0;transition:transform .25s ease}
+.racc.open .racc-head .chev{transform:rotate(180deg)}
+.racc-body{max-height:0;opacity:0;overflow:hidden;transition:max-height .3s ease, opacity .25s ease}
+.racc.open .racc-body{max-height:2000px;opacity:1;overflow:visible;transition:max-height .3s ease, opacity .25s ease, overflow 0s .3s}
+.racc-body-inner{padding:18px 16px}
+
 /* ---- table ---- */
 .tblwrap{overflow-x:auto;border:1px solid var(--line);border-radius:14px;background:var(--card)}
 table.tbl{width:100%;border-collapse:collapse;font-size:13.5px;min-width:920px}
@@ -556,6 +567,7 @@ var S = {
   filters: { q:"", site:"all", outil:"all", statut:"all", priorite:"all" },
   reportFilters: { site:[], outil:[], severite:[], priorite:[], statut:[] },
   openReportFilter: null,
+  reportFiltersOpen: false,
   expanded: {},
   editingId: null,
   declareDone: false,
@@ -2019,14 +2031,16 @@ function adminRapport(){
   return '<div class="card pad noprint" style="margin-bottom:16px">'+
       '<div style="font-weight:800;margin-bottom:10px">Exporter</div>'+
       '<p class="mut small" style="margin-bottom:10px">Applique des filtres pour n’exporter/imprimer qu’une partie des anomalies (ex. un outil précis, une sévérité, un statut), ou laisse sur « tous ».</p>'+
-      '<div class="fstack" style="margin-bottom:18px">'+
-        reportFilterDropdown("outil", "Outil", S.settings.outils)+
-        reportFilterDropdown("site", "Site", SITES)+
-        reportFilterDropdown("severite", "Sévérité", ["Basse","Moyenne","Haute","Bloquante"])+
-        reportFilterDropdown("priorite", "Priorité", ["P1","P2","P3",""], PRIORITE_LABEL)+
-        reportFilterDropdown("statut", "Statut", S.settings.statuts)+
+      '<div class="racc'+(S.reportFiltersOpen?" open":"")+'">'+
+        '<button type="button" class="racc-head" data-a="toggle-filters-accordion"><span>Filtrer les données</span>'+MSEL_CHEV+"</button>"+
+        '<div class="racc-body"><div class="racc-body-inner"><div class="fstack">'+
+          reportFilterDropdown("outil", "Outil", S.settings.outils)+
+          reportFilterDropdown("site", "Site", SITES)+
+          reportFilterDropdown("severite", "Sévérité", ["Basse","Moyenne","Haute","Bloquante"])+
+          reportFilterDropdown("priorite", "Priorité", ["P1","P2","P3",""], PRIORITE_LABEL)+
+          reportFilterDropdown("statut", "Statut", S.settings.statuts)+
+        "</div></div></div>"+
       "</div>"+
-      '<div class="divider" style="margin:18px 0"></div>'+
       '<div class="btnrow">'+
         '<button class="btn bp" data-a="export-xlsx">'+ICON_XLSX+' Exporter en Excel ('+list.length+')</button>'+
         '<button class="btn" data-a="print-page">'+ICON_PRINT+' Imprimer / exporter en PDF</button>'+
@@ -2582,6 +2596,11 @@ function handleAction(a, v, id){
       break;
     case "toggle-filter-dropdown":
       S.openReportFilter = (S.openReportFilter===v) ? null : v;
+      render();
+      break;
+    case "toggle-filters-accordion":
+      S.reportFiltersOpen = !S.reportFiltersOpen;
+      if(!S.reportFiltersOpen) S.openReportFilter = null;
       render();
       break;
     case "toggle-report-filter": {
