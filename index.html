@@ -167,14 +167,25 @@ tr.row-overdue{background:var(--p1-bg)}
 .toolbar select,.toolbar input{border:1px solid var(--line);border-radius:8px;padding:8px 10px;background:var(--card);color:var(--ink);font-size:13px}
 .toolbar input[type=search]{min-width:220px;flex:1}
 
-/* ---- multi-select filter chips ---- */
-.fgroup{margin-bottom:14px}
-.fgroup .flabel{font-size:11px;font-weight:800;letter-spacing:.04em;text-transform:uppercase;color:var(--mu);margin-bottom:7px}
-.fgroup .frow{display:flex;flex-wrap:wrap;gap:6px}
-.fbtn{border:1px solid var(--line);border-radius:100px;padding:6px 12px;font-size:12.5px;font-weight:600;background:var(--card);color:var(--mu);cursor:pointer}
-.fbtn:hover{border-color:var(--hi-solid);color:var(--ink)}
-.fbtn.on{background:var(--hi-solid);border-color:var(--hi-solid);color:#fff}
-.fbtn.allbtn{font-weight:800}
+/* ---- multi-select filter dropdowns ---- */
+.fstack{display:flex;flex-direction:column;gap:18px}
+.fstack .flabel{display:block;font-size:11px;font-weight:800;letter-spacing:.04em;text-transform:uppercase;color:var(--mu);margin-bottom:7px}
+.msel{position:relative}
+.msel-btn{width:100%;display:flex;align-items:center;justify-content:space-between;gap:10px;border:1px solid var(--line);border-radius:9px;padding:10px 12px;background:var(--card);color:var(--ink);font-size:13.5px;font-weight:600;cursor:pointer;text-align:left}
+.msel-btn:hover{border-color:var(--hi-solid)}
+.msel-btn .chev{color:var(--mu);flex-shrink:0;transition:transform .15s}
+.msel.open .msel-btn{border-color:var(--hi-solid);box-shadow:0 0 0 3px var(--hi-bg)}
+.msel.open .msel-btn .chev{transform:rotate(180deg)}
+.msel-summary{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.msel-panel{position:absolute;top:calc(100% + 6px);left:0;right:0;z-index:30;background:var(--card);border:1px solid var(--line);border-radius:10px;box-shadow:var(--shadow);padding:6px;max-height:264px;overflow-y:auto}
+.msel-opt{display:flex;align-items:center;gap:9px;width:100%;padding:8px 9px;border-radius:7px;font-size:13px;font-weight:600;color:var(--ink);background:none;border:none;cursor:pointer;text-align:left}
+.msel-opt:hover{background:var(--bg)}
+.msel-opt.all{font-weight:800}
+.msel-check{width:16px;height:16px;border-radius:4px;border:1.5px solid var(--line);flex-shrink:0;display:inline-flex;align-items:center;justify-content:center;background:var(--card)}
+.msel-check svg{display:none;width:11px;height:11px;color:#fff}
+.msel-opt.on .msel-check{background:var(--hi-solid);border-color:var(--hi-solid)}
+.msel-opt.on .msel-check svg{display:block}
+.msel-sep{height:1px;background:var(--line);margin:5px 3px}
 
 /* ---- table ---- */
 .tblwrap{overflow-x:auto;border:1px solid var(--line);border-radius:14px;background:var(--card)}
@@ -544,6 +555,7 @@ var S = {
   },
   filters: { q:"", site:"all", outil:"all", statut:"all", priorite:"all" },
   reportFilters: { site:[], outil:[], severite:[], priorite:[], statut:[] },
+  openReportFilter: null,
   expanded: {},
   editingId: null,
   declareDone: false,
@@ -1405,16 +1417,37 @@ function filterSelect(path, current, values, allLabel, isPrio){
       return opt(v, lbl, current);
     }).join("")+"</select>";
 }
-function reportFilterGroup(key, label, options, labelMap){
+var MSEL_CHEV = '<svg class="chev" width="14" height="14" viewBox="0 0 20 20" fill="none"><path d="M5 8l5 5 5-5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+var MSEL_CHECK = '<span class="msel-check"><svg viewBox="0 0 16 16" fill="none"><path d="M3 8.2l3.3 3.3L13 4.8" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></span>';
+function reportFilterLabel(key, o, labelMap){
+  return labelMap ? (labelMap[o]!==undefined?labelMap[o]:"Non priorisé") : (o===""?"Non renseigné":o);
+}
+function reportFilterSummary(key, options, labelMap){
   var sel = S.reportFilters[key] || [];
+  if(!sel.length) return "Tous";
+  if(sel.length===1) return reportFilterLabel(key, sel[0], labelMap);
+  return sel.length+" sélectionnés";
+}
+function reportFilterDropdown(key, label, options, labelMap){
+  var sel = S.reportFilters[key] || [];
+  var isOpen = S.openReportFilter===key;
   var allOn = sel.length===0;
-  var chips = '<button type="button" class="fbtn allbtn'+(allOn?" on":"")+'" data-a="clear-report-filter" data-v="'+key+'">Tous</button>'+
-    options.map(function(o){
-      var on = sel.indexOf(o)!==-1;
-      var lbl = labelMap ? (labelMap[o]!==undefined?labelMap[o]:"Non priorisé") : (o===""?"Non renseigné":o);
-      return '<button type="button" class="fbtn'+(on?" on":"")+'" data-a="toggle-report-filter" data-v="'+key+'" data-id="'+esc(o)+'">'+esc(lbl)+"</button>";
-    }).join("");
-  return '<div class="fgroup"><div class="flabel">'+esc(label)+'</div><div class="frow">'+chips+"</div></div>";
+  var panel = "";
+  if(isOpen){
+    var opts = '<button type="button" class="msel-opt all'+(allOn?" on":"")+'" data-a="clear-report-filter" data-v="'+key+'">'+MSEL_CHECK+"Tous</button>"+
+      '<div class="msel-sep"></div>'+
+      options.map(function(o){
+        var on = sel.indexOf(o)!==-1;
+        return '<button type="button" class="msel-opt'+(on?" on":"")+'" data-a="toggle-report-filter" data-v="'+key+'" data-id="'+esc(o)+'">'+MSEL_CHECK+esc(reportFilterLabel(key,o,labelMap))+"</button>";
+      }).join("");
+    panel = '<div class="msel-panel">'+opts+"</div>";
+  }
+  return '<div><label class="flabel">'+esc(label)+'</label>'+
+    '<div class="msel'+(isOpen?" open":"")+'">'+
+      '<button type="button" class="msel-btn" data-a="toggle-filter-dropdown" data-v="'+key+'"><span class="msel-summary">'+esc(reportFilterSummary(key,options,labelMap))+"</span>"+MSEL_CHEV+"</button>"+
+      panel+
+    "</div>"+
+  "</div>";
 }
 
 /* ============================= DÉCLARATION ============================= */
@@ -1970,7 +2003,6 @@ function adminReglages(){
   "</div>";
 }
 function adminRapport(){
-  var rf = S.reportFilters;
   var list = filteredReportAnomalies();
   var groups = [["P1","Bloquant"],["P2","Majeur"],["P3","Modéré"],["","Non priorisé"]];
   var k = computeKPIs(S.anomalies);
@@ -1987,11 +2019,14 @@ function adminRapport(){
   return '<div class="card pad noprint" style="margin-bottom:16px">'+
       '<div style="font-weight:800;margin-bottom:10px">Exporter</div>'+
       '<p class="mut small" style="margin-bottom:10px">Applique des filtres pour n’exporter/imprimer qu’une partie des anomalies (ex. un outil précis, une sévérité, un statut), ou laisse sur « tous ».</p>'+
-      reportFilterGroup("outil", "Outil", S.settings.outils)+
-      reportFilterGroup("site", "Site", SITES)+
-      reportFilterGroup("severite", "Sévérité", ["Basse","Moyenne","Haute","Bloquante"])+
-      reportFilterGroup("priorite", "Priorité", ["P1","P2","P3",""], PRIORITE_LABEL)+
-      reportFilterGroup("statut", "Statut", S.settings.statuts)+
+      '<div class="fstack" style="margin-bottom:18px">'+
+        reportFilterDropdown("outil", "Outil", S.settings.outils)+
+        reportFilterDropdown("site", "Site", SITES)+
+        reportFilterDropdown("severite", "Sévérité", ["Basse","Moyenne","Haute","Bloquante"])+
+        reportFilterDropdown("priorite", "Priorité", ["P1","P2","P3",""], PRIORITE_LABEL)+
+        reportFilterDropdown("statut", "Statut", S.settings.statuts)+
+      "</div>"+
+      '<div class="divider" style="margin:18px 0"></div>'+
       '<div class="btnrow">'+
         '<button class="btn bp" data-a="export-xlsx">'+ICON_XLSX+' Exporter en Excel ('+list.length+')</button>'+
         '<button class="btn" data-a="print-page">'+ICON_PRINT+' Imprimer / exporter en PDF</button>'+
@@ -2545,6 +2580,10 @@ function handleAction(a, v, id){
     case "print-page":
       window.print();
       break;
+    case "toggle-filter-dropdown":
+      S.openReportFilter = (S.openReportFilter===v) ? null : v;
+      render();
+      break;
     case "toggle-report-filter": {
       var arr = (S.reportFilters[v] || []).slice();
       var idx = arr.indexOf(id);
@@ -2698,9 +2737,11 @@ function handleAction(a, v, id){
 (function(){
   var app = document.getElementById("app");
   app.addEventListener("click", function(e){
+    var closedDropdown = false;
+    if(S.openReportFilter && !e.target.closest(".msel")){ S.openReportFilter = null; closedDropdown = true; }
     var t = e.target.closest("[data-a]");
-    if(!t) return;
-    handleAction(t.dataset.a, t.dataset.v, t.dataset.id);
+    if(t){ handleAction(t.dataset.a, t.dataset.v, t.dataset.id); return; }
+    if(closedDropdown) render();
   });
   app.addEventListener("input", function(e){
     var t = e.target;
