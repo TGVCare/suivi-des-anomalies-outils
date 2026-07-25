@@ -580,6 +580,7 @@ var S = {
   filters: { q:"", site:"all", outil:"all", statut:"all", priorite:"all" },
   kioskFilters: { site:"all", statut:"all", outil:"all", period:"all" },
   kioskSlideSelection: {},
+  kioskSectionOrder: null,
   activeScenarioName: null,
   kioskScenarioName: "",
   reportFilters: { site:[], outil:[], severite:[], priorite:[], statut:[] },
@@ -646,9 +647,22 @@ var KIOSK_AGE_BUCKETS = [
   {label:"31–90 j", min:31, max:90},
   {label:"90 j +", min:91, max:Infinity}
 ];
+function ensureKioskSectionOrder(){
+  if(!S.kioskSectionOrder) S.kioskSectionOrder = KIOSK_SECTIONS.slice();
+  KIOSK_SECTIONS.forEach(function(s){ if(S.kioskSectionOrder.indexOf(s)===-1) S.kioskSectionOrder.push(s); });
+  S.kioskSectionOrder = S.kioskSectionOrder.filter(function(s){ return KIOSK_SECTIONS.indexOf(s)!==-1; });
+}
+function moveKioskSection(sec, dir){
+  ensureKioskSectionOrder();
+  var arr = S.kioskSectionOrder;
+  var i = arr.indexOf(sec), j = i+dir;
+  if(i===-1 || j<0 || j>=arr.length) return;
+  var tmp = arr[i]; arr[i] = arr[j]; arr[j] = tmp;
+}
 function activeKioskSections(){
-  var active = KIOSK_SECTIONS.filter(function(s){ return S.kioskSlideSelection[s]!==false; });
-  return active.length ? active : KIOSK_SECTIONS.slice();
+  ensureKioskSectionOrder();
+  var active = S.kioskSectionOrder.filter(function(s){ return S.kioskSlideSelection[s]!==false; });
+  return active.length ? active : S.kioskSectionOrder;
 }
 var STATUT_HEX = {
   "À qualifier":"#8A93A8","En cadrage":"#8B5CF6","Analyse SI":"#5B2A8C","Attente info":"#2454C7",
@@ -1841,6 +1855,7 @@ function adminNotifications(){
     rows;
 }
 function adminOverview(){
+  ensureKioskSectionOrder();
   var list = S.anomalies;
   var k = computeKPIs(list);
   var p1open = list.filter(function(a){ return a.priorite==="P1" && STATUTS_OUVERTS.indexOf(a.statut)===-1; });
@@ -1876,13 +1891,17 @@ function adminOverview(){
           Object.keys(KIOSK_PERIODS).map(function(v){ return opt(v, KIOSK_PERIODS[v], S.kioskFilters.period); }).join("")+
         "</select>"+
       "</div>"+
-      '<div class="btnrow" style="margin-bottom:14px;flex-wrap:wrap">'+
-        '<span class="small mut" style="align-self:center">Slides :</span>'+
-        KIOSK_SECTIONS.map(function(sec){
+      '<div class="small mut" style="margin-bottom:8px;text-transform:none">Slides (sélection et ordre) :</div>'+
+      '<div style="display:flex;flex-direction:column;gap:5px;margin-bottom:14px;max-width:440px">'+
+        S.kioskSectionOrder.map(function(sec,i){
           var checked = S.kioskSlideSelection[sec]!==false;
-          return '<label style="display:inline-flex;align-items:center;gap:6px;font-size:13px;font-weight:600;color:var(--ink);text-transform:none;cursor:pointer">'+
-            '<input type="checkbox" data-f="kioskSlideSelection.'+sec+'"'+(checked?" checked":"")+"> "+esc(KIOSK_SECTION_LABELS[sec])+
-          "</label>";
+          return '<div style="display:flex;align-items:center;gap:8px;padding:7px 10px;background:var(--bg);border:1px solid var(--line);border-radius:8px">'+
+            '<label style="display:flex;align-items:center;gap:8px;flex:1;cursor:pointer;font-size:13px;font-weight:600;color:var(--ink);text-transform:none">'+
+              '<input type="checkbox" data-f="kioskSlideSelection.'+sec+'"'+(checked?" checked":"")+"> "+esc(KIOSK_SECTION_LABELS[sec])+
+            "</label>"+
+            '<button type="button" class="btn bd bsm" data-a="move-slide-up" data-v="'+sec+'" title="Monter" style="padding:2px 7px"'+(i===0?" disabled":"")+">↑</button>"+
+            '<button type="button" class="btn bd bsm" data-a="move-slide-down" data-v="'+sec+'" title="Descendre" style="padding:2px 7px"'+(i===S.kioskSectionOrder.length-1?" disabled":"")+">↓</button>"+
+          "</div>";
         }).join("")+
       "</div>"+
       '<div class="btnrow" style="align-items:center">'+
@@ -2654,7 +2673,8 @@ function startKiosk(){
   kioskRender();
 }
 function stopKiosk(){
-  S.page = "consult";
+  S.page = "admin";
+  S.adminTab = "overview";
   if(document.fullscreenElement){ document.exitFullscreen()["catch"](function(){}); }
   render();
 }
@@ -2749,6 +2769,7 @@ function handleAction(a, v, id){
       S.kioskFilters = Object.assign({site:"all",statut:"all",outil:"all",period:"all"}, scenario.filters);
       S.kioskSlideSelection = {};
       KIOSK_SECTIONS.forEach(function(sec){ S.kioskSlideSelection[sec] = scenario.sections.indexOf(sec)!==-1; });
+      S.kioskSectionOrder = scenario.sections.concat(KIOSK_SECTIONS.filter(function(sec){ return scenario.sections.indexOf(sec)===-1; }));
       S.activeScenarioName = scenario.name;
       startKiosk();
       break;
@@ -2868,6 +2889,14 @@ function handleAction(a, v, id){
       break;
     case "toggle-brief-config":
       S.briefConfigOpen = !S.briefConfigOpen;
+      render();
+      break;
+    case "move-slide-up":
+      moveKioskSection(v, -1);
+      render();
+      break;
+    case "move-slide-down":
+      moveKioskSection(v, 1);
       render();
       break;
     case "toggle-report-filter": {
