@@ -571,6 +571,7 @@ var S = {
     settings: { newOutil:"", newStatut:"", currentPin:"", newPin:"", newPin2:"" }
   },
   filters: { q:"", site:"all", outil:"all", statut:"all", priorite:"all" },
+  kioskFilters: { site:"all", period:"all" },
   reportFilters: { site:[], outil:[], severite:[], priorite:[], statut:[] },
   openReportFilter: null,
   reportFiltersOpen: false,
@@ -1610,6 +1611,18 @@ function renderMyTickets(){
 }
 
 /* ============================= CONSULTATION ============================= */
+var KIOSK_PERIODS = { all:"Toute la période", "7":"7 derniers jours", "30":"30 derniers jours", "90":"90 derniers jours" };
+function kioskFilteredAnomalies(){
+  var f = S.kioskFilters;
+  return S.anomalies.filter(function(a){
+    if(f.site!=="all" && a.site!==f.site) return false;
+    if(f.period!=="all"){
+      var age = daysSince(a.dateDeclaration);
+      if(age===null || age>parseInt(f.period,10)) return false;
+    }
+    return true;
+  });
+}
 function filteredAnomalies(){
   var f = S.filters;
   return S.anomalies.filter(function(a){
@@ -1804,7 +1817,16 @@ function adminOverview(){
       '<div class="card pad" style="border-color:var(--p2)"><h4 style="font-size:13px;text-transform:uppercase;color:var(--p2);margin-bottom:12px">⚠ P1 sans pilote depuis '+P1_ALERT_DAYS+"j+ <span class='chip p2' style='margin-left:4px'>"+alerts.p1np.length+"</span></h4>"+alertListHTML(alerts.p1np,"pilote")+"</div>"+
     "</div>";
   }
-  return '<div class="btnrow noprint" style="margin-bottom:16px"><button class="btn" data-a="kiosk-start">'+ICON_BRIEF+' Mode brief</button></div>'+
+  var kioskFilterBar = '<div class="btnrow noprint" style="margin-bottom:16px;align-items:center">'+
+    '<button class="btn" data-a="kiosk-start">'+ICON_BRIEF+' Mode brief</button>'+
+    '<select class="inp" style="width:auto" data-f="kioskFilters.site">'+
+      ["all"].concat(SITES).map(function(v){ return opt(v, v==="all"?"Tous les sites":v, S.kioskFilters.site); }).join("")+
+    "</select>"+
+    '<select class="inp" style="width:auto" data-f="kioskFilters.period">'+
+      Object.keys(KIOSK_PERIODS).map(function(v){ return opt(v, KIOSK_PERIODS[v], S.kioskFilters.period); }).join("")+
+    "</select>"+
+  "</div>";
+  return kioskFilterBar+
     alertsBlock+
     buildKpiTilesHTML(list)+
     '<div class="card pad" style="margin-bottom:18px">'+progressGlobalHTML(k)+"</div>"+
@@ -2384,11 +2406,18 @@ function refreshResults(){
 }
 
 /* ============================= ACTIONS ============================= */
+function kioskDeltaHTML(cur, prev, polarity){
+  var diff = cur-prev;
+  var arrow = diff>0 ? "▲" : diff<0 ? "▼" : "＝";
+  var good = diff===0 ? null : (polarity==="up" ? diff>0 : diff<0);
+  var color = good===null ? "rgba(255,255,255,.5)" : (good ? "#7BDBA6" : "#F0899A");
+  return '<div style="font-size:13px;font-weight:700;color:'+color+';margin-top:6px">'+arrow+" "+Math.abs(diff)+' <span style="font-weight:500;opacity:.75">vs sem. préc.</span></div>';
+}
 function kioskRender(){
   var el = document.getElementById("app");
-  var list = S.anomalies;
+  var list = kioskFilteredAnomalies();
   var k = computeKPIs(list);
-  var al = computeAlerts();
+  var overdueList = list.filter(function(a){ return a.echeance && daysSince(a.echeance)>0 && STATUTS_OUVERTS.indexOf(a.statut)===-1; });
   var section = KIOSK_SECTIONS[S.kioskIdx % KIOSK_SECTIONS.length];
   var body = "";
   var SUB = 'style="color:#fff;font-size:19px;font-weight:600;margin-bottom:26px;text-align:center;opacity:.9"';
@@ -2401,34 +2430,53 @@ function kioskRender(){
   } else if(section==="visibilite"){
     var correctifs = list.filter(function(a){ return a.correctif; }).length;
     var contournements = list.filter(function(a){ return a.contournement; }).length;
+    var overdueRows = overdueList.slice(0,5).map(function(a){
+      return '<div style="display:flex;justify-content:space-between;gap:14px;padding:9px 14px;background:rgba(255,255,255,.06);border-radius:8px;font-size:14.5px;text-align:left">'+
+        "<span><b>"+esc(a.outil)+"</b> · "+esc(a.site||"–")+"</span>"+
+        '<span style="color:#F0899A;font-weight:700;white-space:nowrap">'+daysSince(a.echeance)+" j de retard</span>"+
+      "</div>";
+    }).join("");
+    if(overdueList.length>5) overdueRows += '<div style="opacity:.7;font-size:13px;margin-top:4px">+'+(overdueList.length-5)+" autre(s)</div>";
     body = '<div class="kiosk-body" style="text-align:center">'+
       "<h3 "+SUB+">Visibilité : anomalies, correctifs, contournements, échéances</h3>"+
       '<div class="kiosk-kpis">'+
         '<div><div class="n">'+k.total+'</div><div class="l">Anomalies identifiées</div></div>'+
         '<div><div class="n" style="color:#8FB4F5">'+correctifs+'</div><div class="l">Correctifs en cours ou réalisés</div></div>'+
         '<div><div class="n" style="color:#F0B36C">'+contournements+'</div><div class="l">Contournements disponibles</div></div>'+
-        '<div><div class="n" style="color:#F0899A">'+al.overdue.length+'</div><div class="l">Échéances dépassées</div></div>'+
-      "</div></div>";
+        '<div><div class="n" style="color:#F0899A">'+overdueList.length+'</div><div class="l">Échéances dépassées</div></div>'+
+      "</div>"+
+      (overdueList.length ? '<div style="max-width:640px;margin:28px auto 0;display:flex;flex-direction:column;gap:8px">'+overdueRows+"</div>" : "")+
+    "</div>";
   } else if(section==="indicateurs"){
+    var createdFlow = weeklyFlow(list, "dateDeclaration", 8);
+    var resolvedFlow = weeklyFlow(list, "dateResolution", 8);
+    var pilotesFlow = weeklyPilotesFlow(list, 8);
+    var netFlow = createdFlow.map(function(c,i){ return c-resolvedFlow[i]; });
+    var tauxFlow = weeklyTauxApprox(list, 8);
+    var li = createdFlow.length-1, pi = li-1;
     body = '<div class="kiosk-body" style="text-align:center">'+
       "<h3 "+SUB+">Indicateurs clés</h3>"+
       '<div class="kiosk-kpis">'+
-        '<div><div class="n">'+k.total+'</div><div class="l">Anomalies remontées</div></div>'+
-        '<div><div class="n" style="color:#F0B36C">'+k.ouverts+'</div><div class="l">Tickets incidents ouverts</div></div>'+
-        '<div><div class="n" style="color:#C9A2EF">'+k.pilotes+'</div><div class="l">Pilotes engagés</div></div>'+
-        '<div><div class="n" style="color:#7BDBA6">'+k.mep+'</div><div class="l">MEP réalisées</div></div>'+
-        '<div><div class="n" style="color:#7BDBA6">'+k.taux+'%</div><div class="l">Taux de résolution</div></div>'+
+        '<div><div class="n">'+k.total+'</div><div class="l">Anomalies remontées</div>'+kioskDeltaHTML(createdFlow[li],createdFlow[pi],"neutral")+"</div>"+
+        '<div><div class="n" style="color:#F0B36C">'+k.ouverts+'</div><div class="l">Tickets incidents ouverts</div>'+kioskDeltaHTML(netFlow[li],netFlow[pi],"down")+"</div>"+
+        '<div><div class="n" style="color:#C9A2EF">'+k.pilotes+'</div><div class="l">Pilotes engagés</div>'+kioskDeltaHTML(pilotesFlow[li],pilotesFlow[pi],"neutral")+"</div>"+
+        '<div><div class="n" style="color:#7BDBA6">'+k.mep+'</div><div class="l">MEP réalisées</div>'+kioskDeltaHTML(resolvedFlow[li],resolvedFlow[pi],"up")+"</div>"+
+        '<div><div class="n" style="color:#7BDBA6">'+k.taux+'%</div><div class="l">Taux de résolution</div>'+kioskDeltaHTML(tauxFlow[li],tauxFlow[pi],"up")+"</div>"+
       "</div></div>";
   } else if(section==="donut"){
     body = '<div class="kiosk-body" style="text-align:center">'+donutChartHTML(list,k)+"</div>";
   } else if(section==="trend"){
     body = '<div class="kiosk-body"><h3 '+SUB+' style="margin-bottom:14px">Tendance ('+TREND_WEEKS+' dernières semaines)</h3>'+trendChartHTML(list)+"</div>";
   }
+  var scopeBits = [];
+  if(S.kioskFilters.site!=="all") scopeBits.push(S.kioskFilters.site);
+  if(S.kioskFilters.period!=="all") scopeBits.push(KIOSK_PERIODS[S.kioskFilters.period]);
+  var eyebrow = "TGV CARE · UO Sud-Est" + (scopeBits.length ? " · "+scopeBits.join(" · ") : "");
   el.innerHTML = '<div class="kiosk">'+
     '<button class="kiosk-exit" data-a="kiosk-exit">Quitter ✕</button>'+
     '<button class="kiosk-nav kiosk-prev" data-a="kiosk-prev" aria-label="Précédent">‹</button>'+
     '<button class="kiosk-nav kiosk-next" data-a="kiosk-next" aria-label="Suivant">›</button>'+
-    '<div class="kiosk-eyebrow">TGV CARE · UO Sud-Est</div>'+
+    '<div class="kiosk-eyebrow">'+esc(eyebrow)+"</div>"+
     "<h2>Suivi des anomalies</h2>"+
     body+
     '<div class="kiosk-dots">'+KIOSK_SECTIONS.map(function(s,i){ return '<span class="'+(i===S.kioskIdx%KIOSK_SECTIONS.length?"on":"")+'" data-a="kiosk-goto" data-v="'+i+'"></span>'; }).join("")+"</div>"+
