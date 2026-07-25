@@ -2479,16 +2479,22 @@ function kioskRender(){
   var section = KIOSK_SECTIONS[S.kioskIdx % KIOSK_SECTIONS.length];
   var body = "";
   var SUB = 'style="color:#fff;font-size:19px;font-weight:600;margin-bottom:26px;text-align:center;opacity:.9"';
+  var scopeBits0 = [];
+  if(S.kioskFilters.site!=="all") scopeBits0.push(S.kioskFilters.site);
+  if(S.kioskFilters.statut!=="all") scopeBits0.push(S.kioskFilters.statut);
+  if(S.kioskFilters.outil!=="all") scopeBits0.push(S.kioskFilters.outil);
+  if(S.kioskFilters.period!=="all") scopeBits0.push(KIOSK_PERIODS[S.kioskFilters.period]);
+  var titleSuffix = scopeBits0.length ? " — "+esc(scopeBits0.join(" · ")) : "";
   if(section==="centralisation"){
     var bySite = groupCount(list, "site");
     body = '<div class="kiosk-body">'+
-      "<h3 "+SUB+">Centraliser les anomalies remontées par les sites</h3>"+
+      "<h3 "+SUB+">Centraliser les anomalies remontées par les sites"+titleSuffix+"</h3>"+
       barListHTML(bySite, bySite.length)+
     "</div>";
   } else if(section==="outils"){
     var byOutil = groupCount(list, "outil");
     body = '<div class="kiosk-body">'+
-      "<h3 "+SUB+">Répartition par outil</h3>"+
+      "<h3 "+SUB+">Répartition par outil"+titleSuffix+"</h3>"+
       barListHTML(byOutil, Math.min(byOutil.length,8))+
     "</div>";
   } else if(section==="visibilite"){
@@ -2502,7 +2508,7 @@ function kioskRender(){
     }).join("");
     if(overdueList.length>5) overdueRows += '<div style="opacity:.7;font-size:13px;margin-top:4px">+'+(overdueList.length-5)+" autre(s)</div>";
     body = '<div class="kiosk-body" style="text-align:center">'+
-      "<h3 "+SUB+">Visibilité : anomalies, correctifs, contournements, échéances</h3>"+
+      "<h3 "+SUB+">Visibilité : anomalies, correctifs, contournements, échéances"+titleSuffix+"</h3>"+
       '<div class="kiosk-kpis">'+
         '<div><div class="n">'+k.total+'</div><div class="l">Anomalies identifiées</div></div>'+
         '<div><div class="n" style="color:#8FB4F5">'+correctifs+'</div><div class="l">Correctifs en cours ou réalisés</div></div>'+
@@ -2519,7 +2525,7 @@ function kioskRender(){
     var tauxFlow = weeklyTauxApprox(list, 8);
     var li = createdFlow.length-1, pi = li-1;
     body = '<div class="kiosk-body" style="text-align:center">'+
-      "<h3 "+SUB+">Indicateurs clés</h3>"+
+      "<h3 "+SUB+">Indicateurs clés"+titleSuffix+"</h3>"+
       '<div class="kiosk-kpis">'+
         '<div><div class="n">'+k.total+'</div><div class="l">Anomalies remontées</div>'+kioskDeltaHTML(createdFlow[li],createdFlow[pi],"neutral")+"</div>"+
         '<div><div class="n" style="color:#F0B36C">'+k.ouverts+'</div><div class="l">Tickets incidents ouverts</div>'+kioskDeltaHTML(netFlow[li],netFlow[pi],"down")+"</div>"+
@@ -2528,14 +2534,11 @@ function kioskRender(){
         '<div><div class="n" style="color:#7BDBA6">'+k.taux+'%</div><div class="l">Taux de résolution</div>'+kioskDeltaHTML(tauxFlow[li],tauxFlow[pi],"up")+"</div>"+
       "</div></div>";
   } else if(section==="donut"){
-    body = '<div class="kiosk-body" style="text-align:center">'+donutChartHTML(list,k)+"</div>";
+    body = '<div class="kiosk-body" style="text-align:center">'+(titleSuffix?"<h3 "+SUB+" style=\"margin-bottom:14px\">Répartition par statut"+titleSuffix+"</h3>":"")+donutChartHTML(list,k)+"</div>";
   } else if(section==="trend"){
-    body = '<div class="kiosk-body"><h3 '+SUB+' style="margin-bottom:14px">Tendance ('+TREND_WEEKS+' dernières semaines)</h3>'+trendChartHTML(list)+"</div>";
+    body = '<div class="kiosk-body"><h3 '+SUB+' style="margin-bottom:14px">Tendance ('+TREND_WEEKS+' dernières semaines)'+titleSuffix+"</h3>"+trendChartHTML(list)+"</div>";
   }
-  var scopeBits = [];
-  if(S.kioskFilters.site!=="all") scopeBits.push(S.kioskFilters.site);
-  if(S.kioskFilters.statut!=="all") scopeBits.push(S.kioskFilters.statut);
-  if(S.kioskFilters.outil!=="all") scopeBits.push(S.kioskFilters.outil);
+  var scopeBits = scopeBits0;
   if(S.kioskFilters.period!=="all") scopeBits.push(KIOSK_PERIODS[S.kioskFilters.period]);
   var eyebrow = "TGV CARE · UO Sud-Est" + (scopeBits.length ? " · "+scopeBits.join(" · ") : "");
   el.innerHTML = '<div class="kiosk">'+
