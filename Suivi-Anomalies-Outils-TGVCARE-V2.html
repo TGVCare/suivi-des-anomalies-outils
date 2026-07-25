@@ -358,9 +358,12 @@ table.tbl td.desc{max-width:320px}
 
 /* ---- kiosk (mode brief) ---- */
 .kiosk{position:fixed;inset:0;background:radial-gradient(1100px 750px at 50% -8%,#332352 0%,#1B1628 45%,#120F1A 78%);color:#fff;z-index:500;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:40px;overflow:hidden}
-.kiosk .kiosk-exit{position:absolute;top:20px;right:24px;background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.14);color:#fff;padding:9px 16px;border-radius:9px;font-size:13px;font-weight:700}
+.kiosk .kiosk-toolbar{position:absolute;top:20px;right:24px;display:flex;gap:10px;z-index:2}
+.kiosk .kiosk-toolbar button{background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.14);color:#fff;padding:9px 16px;border-radius:9px;font-size:13px;font-weight:700}
+.kiosk .kiosk-toolbar button:hover{background:rgba(255,255,255,.18)}
 .kiosk .kiosk-eyebrow{font-size:13px;font-weight:700;letter-spacing:.09em;text-transform:uppercase;color:#C9A2EF;text-align:center;margin-bottom:10px}
-.kiosk h2{font-size:38px;font-weight:800;color:#fff;margin-bottom:36px;text-align:center;letter-spacing:-.01em}
+.kiosk h2{font-size:38px;font-weight:800;color:#fff;margin-bottom:8px;text-align:center;letter-spacing:-.01em}
+.kiosk .kiosk-date{font-size:13px;color:rgba(255,255,255,.5);text-align:center;margin-bottom:28px}
 .kiosk .kiosk-kpis{display:flex;gap:56px;flex-wrap:wrap;justify-content:center}
 .kiosk .kiosk-kpis .n{font-size:118px;font-weight:800;line-height:1;font-variant-numeric:tabular-nums;text-shadow:0 0 60px currentColor}
 .kiosk .kiosk-kpis .l{font-size:16px;opacity:.72;margin-top:14px;text-align:center;font-weight:500}
@@ -394,18 +397,22 @@ table.tbl td.desc{max-width:320px}
   body,.card,.topbar,.kpi,.tblwrap,.info-panel,.choice{transition:none}
 }
 
+#kiosk-print-out{display:none}
 @media print{
   .noprint{display:none!important}
   body{background:#fff}
   .wrap{max-width:100%}
   .card,.tblwrap{box-shadow:none;border-color:#ccc}
   table.tbl{min-width:0;font-size:11px}
+  body.printing-kiosk #app{display:none!important}
+  body.printing-kiosk #kiosk-print-out{display:block!important}
 }
 </style>
 </head>
 <body>
 <div id="toast"></div>
 <div id="app"></div>
+<div id="kiosk-print-out"></div>
 <script>
 "use strict";
 
@@ -617,7 +624,7 @@ function sortArrow(field){
 
 var THEME_KEY = "tgvcare_theme_v1";
 var dragState = { id: null };
-var KIOSK_SECTIONS = ["centralisation","visibilite","indicateurs","donut","trend"];
+var KIOSK_SECTIONS = ["centralisation","outils","visibilite","indicateurs","donut","trend"];
 var STATUT_HEX = {
   "À qualifier":"#8A93A8","En cadrage":"#8B5CF6","Analyse SI":"#5B2A8C","Attente info":"#2454C7",
   "En attente livraison correctif":"#DB8A2E","Test recette validé":"#0EA5A5","Résolu":"#2E9F6A",
@@ -2413,6 +2420,47 @@ function kioskDeltaHTML(cur, prev, polarity){
   var color = good===null ? "rgba(255,255,255,.5)" : (good ? "#7BDBA6" : "#F0899A");
   return '<div style="font-size:13px;font-weight:700;color:'+color+';margin-top:6px">'+arrow+" "+Math.abs(diff)+' <span style="font-weight:500;opacity:.75">vs sem. préc.</span></div>';
 }
+function kioskPrintReportHTML(){
+  var list = kioskFilteredAnomalies();
+  var k = computeKPIs(list);
+  var overdueList = list.filter(function(a){ return a.echeance && daysSince(a.echeance)>0 && STATUTS_OUVERTS.indexOf(a.statut)===-1; });
+  var scopeBits = [];
+  if(S.kioskFilters.site!=="all") scopeBits.push(S.kioskFilters.site);
+  if(S.kioskFilters.period!=="all") scopeBits.push(KIOSK_PERIODS[S.kioskFilters.period]);
+  var scope = scopeBits.length ? scopeBits.join(" · ") : "Toutes données";
+  var kpiTile = function(n,label,color){
+    return '<div class="kpi"><div class="kpi-top"><div class="n"'+(color?' style="color:'+color+'"':"")+">"+n+"</div></div>"+
+      '<div class="l">'+esc(label)+"</div></div>";
+  };
+  var overdueBlock = "";
+  if(overdueList.length){
+    overdueBlock = '<div class="card pad" style="margin:16px 0"><h4 style="text-transform:uppercase;font-size:12.5px;color:var(--p1);margin-bottom:10px">Échéances dépassées ('+overdueList.length+")</h4>"+
+      overdueList.map(function(a){
+        return '<div style="display:flex;justify-content:space-between;padding:7px 0;border-bottom:1px solid var(--line);font-size:13.5px"><span><b>'+esc(a.outil)+"</b> · "+esc(a.site||"–")+'</span><span style="color:var(--p1)">'+daysSince(a.echeance)+" j de retard</span></div>";
+      }).join("")+
+    "</div>";
+  }
+  return '<div class="wrap section">'+
+    '<h1 style="font-size:24px">Suivi des anomalies — Point du '+fmtDate(todayISO())+"</h1>"+
+    '<p class="mut" style="margin-top:4px">TGV CARE · UO Sud-Est · '+esc(scope)+"</p>"+
+    '<div class="grid5" style="margin:18px 0">'+
+      kpiTile(k.total,"Anomalies identifiées","")+
+      kpiTile(k.ouverts,"Tickets ouverts","var(--p2)")+
+      kpiTile(k.pilotes,"Pilotes engagés","var(--hi)")+
+      kpiTile(k.mep,"MEP réalisées","var(--ok)")+
+      kpiTile(k.taux+"%","Taux de résolution","var(--ok)")+
+    "</div>"+
+    overdueBlock+
+    '<div class="grid2" style="margin:16px 0">'+
+      '<div class="card pad"><h4 style="text-transform:uppercase;font-size:12.5px;color:var(--mu);margin-bottom:10px">Répartition par statut</h4>'+donutChartHTML(list,k)+"</div>"+
+      '<div class="card pad"><h4 style="text-transform:uppercase;font-size:12.5px;color:var(--mu);margin-bottom:10px">Tendance ('+TREND_WEEKS+' sem.)</h4>'+trendChartHTML(list)+"</div>"+
+    "</div>"+
+    '<div class="grid2">'+
+      '<div class="card pad"><h4 style="text-transform:uppercase;font-size:12.5px;color:var(--mu);margin-bottom:10px">Par site</h4>'+barListHTML(groupCount(list,"site"),8,"site")+"</div>"+
+      '<div class="card pad"><h4 style="text-transform:uppercase;font-size:12.5px;color:var(--mu);margin-bottom:10px">Par outil</h4>'+barListHTML(groupCount(list,"outil"),8,"outil")+"</div>"+
+    "</div>"+
+  "</div>";
+}
 function kioskRender(){
   var el = document.getElementById("app");
   var list = kioskFilteredAnomalies();
@@ -2426,6 +2474,12 @@ function kioskRender(){
     body = '<div class="kiosk-body">'+
       "<h3 "+SUB+">Centraliser les anomalies remontées par les sites</h3>"+
       barListHTML(bySite, bySite.length)+
+    "</div>";
+  } else if(section==="outils"){
+    var byOutil = groupCount(list, "outil");
+    body = '<div class="kiosk-body">'+
+      "<h3 "+SUB+">Répartition par outil</h3>"+
+      barListHTML(byOutil, Math.min(byOutil.length,8))+
     "</div>";
   } else if(section==="visibilite"){
     var correctifs = list.filter(function(a){ return a.correctif; }).length;
@@ -2473,11 +2527,12 @@ function kioskRender(){
   if(S.kioskFilters.period!=="all") scopeBits.push(KIOSK_PERIODS[S.kioskFilters.period]);
   var eyebrow = "TGV CARE · UO Sud-Est" + (scopeBits.length ? " · "+scopeBits.join(" · ") : "");
   el.innerHTML = '<div class="kiosk">'+
-    '<button class="kiosk-exit" data-a="kiosk-exit">Quitter ✕</button>'+
+    '<div class="kiosk-toolbar"><button data-a="kiosk-export">⬇ Exporter PDF</button><button data-a="kiosk-exit">Quitter ✕</button></div>'+
     '<button class="kiosk-nav kiosk-prev" data-a="kiosk-prev" aria-label="Précédent">‹</button>'+
     '<button class="kiosk-nav kiosk-next" data-a="kiosk-next" aria-label="Suivant">›</button>'+
     '<div class="kiosk-eyebrow">'+esc(eyebrow)+"</div>"+
     "<h2>Suivi des anomalies</h2>"+
+    '<div class="kiosk-date">Point du '+fmtDate(todayISO())+"</div>"+
     body+
     '<div class="kiosk-dots">'+KIOSK_SECTIONS.map(function(s,i){ return '<span class="'+(i===S.kioskIdx%KIOSK_SECTIONS.length?"on":"")+'" data-a="kiosk-goto" data-v="'+i+'"></span>'; }).join("")+"</div>"+
   "</div>";
@@ -2561,6 +2616,11 @@ function handleAction(a, v, id){
       break;
     case "kiosk-exit":
       stopKiosk();
+      break;
+    case "kiosk-export":
+      document.getElementById("kiosk-print-out").innerHTML = kioskPrintReportHTML();
+      document.body.classList.add("printing-kiosk");
+      window.print();
       break;
     case "kiosk-next":
       S.kioskIdx = (S.kioskIdx + 1) % KIOSK_SECTIONS.length;
@@ -2879,6 +2939,9 @@ function handleAction(a, v, id){
   });
   document.addEventListener("fullscreenchange", function(){
     if(!document.fullscreenElement && S.page==="kiosk"){ stopKiosk(); }
+  });
+  window.addEventListener("afterprint", function(){
+    document.body.classList.remove("printing-kiosk");
   });
 })();
 
