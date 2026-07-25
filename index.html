@@ -585,6 +585,7 @@ var S = {
   reportFilters: { site:[], outil:[], severite:[], priorite:[], statut:[] },
   openReportFilter: null,
   reportFiltersOpen: false,
+  briefConfigOpen: false,
   expanded: {},
   editingId: null,
   declareDone: false,
@@ -627,15 +628,24 @@ function sortArrow(field){
 
 var THEME_KEY = "tgvcare_theme_v1";
 var dragState = { id: null };
-var KIOSK_SECTIONS = ["centralisation","outils","visibilite","indicateurs","donut","trend"];
+var KIOSK_SECTIONS = ["centralisation","outils","priorite","visibilite","anciennete","indicateurs","mep","donut","trend"];
 var KIOSK_SECTION_LABELS = {
   centralisation: "Par site",
   outils: "Par outil",
+  priorite: "Par priorité",
   visibilite: "Visibilité",
+  anciennete: "Ancienneté",
   indicateurs: "Indicateurs",
+  mep: "MEP à venir",
   donut: "Répartition statuts",
   trend: "Tendance"
 };
+var KIOSK_AGE_BUCKETS = [
+  {label:"0–7 j", min:0, max:7},
+  {label:"8–30 j", min:8, max:30},
+  {label:"31–90 j", min:31, max:90},
+  {label:"90 j +", min:91, max:Infinity}
+];
 function activeKioskSections(){
   var active = KIOSK_SECTIONS.filter(function(s){ return S.kioskSlideSelection[s]!==false; });
   return active.length ? active : KIOSK_SECTIONS.slice();
@@ -1340,6 +1350,7 @@ var THEME_LABEL = {auto:"Auto", light:"Clair", dark:"Sombre"};
 var ICON_BRIEF = '<svg width="16" height="16" viewBox="0 0 20 20" fill="none" style="vertical-align:-3px"><rect x="2" y="3.5" width="16" height="10.5" rx="1.6" stroke="currentColor" stroke-width="1.5"/><line x1="7" y1="17" x2="13" y2="17" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><line x1="10" y1="14" x2="10" y2="17" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>';
 var ICON_PRINT = '<svg width="16" height="16" viewBox="0 0 20 20" fill="none" style="vertical-align:-3px"><path d="M5.5 7V3h9v4" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/><rect x="2.5" y="7" width="15" height="7" rx="1.4" stroke="currentColor" stroke-width="1.5"/><rect x="5.5" y="11" width="9" height="6" rx="0.8" stroke="currentColor" stroke-width="1.5"/></svg>';
 var ICON_XLSX = '<svg width="16" height="16" viewBox="0 0 20 20" fill="none" style="vertical-align:-3px"><rect x="2" y="3" width="16" height="12" rx="1.6" stroke="currentColor" stroke-width="1.5"/><path d="M2 7.5h16M7 3v12" stroke="currentColor" stroke-width="1.5"/><path d="M8.7 9.3l3 3.4M11.7 9.3l-3 3.4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>';
+var ICON_SAVE = '<svg width="16" height="16" viewBox="0 0 20 20" fill="none" style="vertical-align:-3px"><path d="M5 3.5h10a1 1 0 0 1 1 1V17l-6-3.5L4 17V4.5a1 1 0 0 1 1-1z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/></svg>';
 function bellIconHTML(count){
   var badge = count ? '<circle cx="14.3" cy="4.3" r="4.1" fill="#f5303f"/><text x="14.3" y="4.5" text-anchor="middle" dominant-baseline="central" font-size="5.6" font-weight="700" fill="#fff">'+(count>9?"9+":count)+"</text>" : "";
   return '<svg width="17" height="17" viewBox="0 0 20 20" fill="none" style="vertical-align:-3px">'+
@@ -1841,40 +1852,45 @@ function adminOverview(){
       '<div class="card pad" style="border-color:var(--p2)"><h4 style="font-size:13px;text-transform:uppercase;color:var(--p2);margin-bottom:12px">⚠ P1 sans pilote depuis '+P1_ALERT_DAYS+"j+ <span class='chip p2' style='margin-left:4px'>"+alerts.p1np.length+"</span></h4>"+alertListHTML(alerts.p1np,"pilote")+"</div>"+
     "</div>";
   }
-  var kioskFilterBar = '<div class="btnrow noprint" style="margin-bottom:16px;align-items:center">'+
+  var kioskFilterBar = '<div class="btnrow noprint" style="margin-bottom:12px;align-items:center">'+
     '<button class="btn" data-a="kiosk-start">'+ICON_BRIEF+' Mode brief</button>'+
-    '<select class="inp" style="width:auto" data-f="kioskFilters.site">'+
-      ["all"].concat(SITES).map(function(v){ return opt(v, v==="all"?"Tous les sites":v, S.kioskFilters.site); }).join("")+
-    "</select>"+
-    '<select class="inp" style="width:auto" data-f="kioskFilters.statut">'+
-      ["all"].concat(S.settings.statuts).map(function(v){ return opt(v, v==="all"?"Tous les statuts":v, S.kioskFilters.statut); }).join("")+
-    "</select>"+
-    '<select class="inp" style="width:auto" data-f="kioskFilters.outil">'+
-      ["all"].concat(S.settings.outils).map(function(v){ return opt(v, v==="all"?"Tous les outils":v, S.kioskFilters.outil); }).join("")+
-    "</select>"+
-    '<select class="inp" style="width:auto" data-f="kioskFilters.period">'+
-      Object.keys(KIOSK_PERIODS).map(function(v){ return opt(v, KIOSK_PERIODS[v], S.kioskFilters.period); }).join("")+
-    "</select>"+
-  "</div>"+
-  '<div class="btnrow noprint" style="margin-bottom:10px;flex-wrap:wrap">'+
-    '<span class="small mut" style="align-self:center">Slides :</span>'+
-    KIOSK_SECTIONS.map(function(sec){
-      var checked = S.kioskSlideSelection[sec]!==false;
-      return '<label style="display:inline-flex;align-items:center;gap:6px;font-size:13px;font-weight:600;color:var(--ink);text-transform:none;cursor:pointer">'+
-        '<input type="checkbox" data-f="kioskSlideSelection.'+sec+'"'+(checked?" checked":"")+"> "+esc(KIOSK_SECTION_LABELS[sec])+
-      "</label>";
-    }).join("")+
-  "</div>"+
-  '<div class="btnrow noprint" style="margin-bottom:16px;align-items:center">'+
-    '<input class="inp" type="text" style="width:220px" placeholder="Nom du scénario" data-f="kioskScenarioName" value="'+esc(S.kioskScenarioName)+'">'+
-    '<button class="btn bsm" data-a="save-scenario">💾 Enregistrer comme scénario</button>'+
-  "</div>"+
-  (S.settings.kioskScenarios.length ? '<div class="btnrow noprint" style="margin-bottom:18px;flex-wrap:wrap">'+
-    S.settings.kioskScenarios.map(function(sc){
+    (S.settings.kioskScenarios.length ? S.settings.kioskScenarios.map(function(sc){
       return '<span class="chip hi" style="cursor:pointer" data-a="launch-scenario" data-id="'+esc(sc.id)+'">▶ '+esc(sc.name)+"</span>"+
         '<button class="btn bsm bd" data-a="delete-scenario" data-id="'+esc(sc.id)+'" title="Supprimer" style="padding:2px 6px">✕</button>';
-    }).join("")+
-  "</div>" : "");
+    }).join("") : "")+
+  "</div>"+
+  '<div class="racc noprint'+(S.briefConfigOpen?" open":"")+'" style="margin-bottom:18px">'+
+    '<button type="button" class="racc-head" data-a="toggle-brief-config"><span>Configurer un scénario</span>'+MSEL_CHEV+"</button>"+
+    '<div class="racc-body"><div class="racc-body-inner">'+
+      '<div class="btnrow" style="margin-bottom:14px">'+
+        '<select class="inp" style="width:auto" data-f="kioskFilters.site">'+
+          ["all"].concat(SITES).map(function(v){ return opt(v, v==="all"?"Tous les sites":v, S.kioskFilters.site); }).join("")+
+        "</select>"+
+        '<select class="inp" style="width:auto" data-f="kioskFilters.statut">'+
+          ["all"].concat(S.settings.statuts).map(function(v){ return opt(v, v==="all"?"Tous les statuts":v, S.kioskFilters.statut); }).join("")+
+        "</select>"+
+        '<select class="inp" style="width:auto" data-f="kioskFilters.outil">'+
+          ["all"].concat(S.settings.outils).map(function(v){ return opt(v, v==="all"?"Tous les outils":v, S.kioskFilters.outil); }).join("")+
+        "</select>"+
+        '<select class="inp" style="width:auto" data-f="kioskFilters.period">'+
+          Object.keys(KIOSK_PERIODS).map(function(v){ return opt(v, KIOSK_PERIODS[v], S.kioskFilters.period); }).join("")+
+        "</select>"+
+      "</div>"+
+      '<div class="btnrow" style="margin-bottom:14px;flex-wrap:wrap">'+
+        '<span class="small mut" style="align-self:center">Slides :</span>'+
+        KIOSK_SECTIONS.map(function(sec){
+          var checked = S.kioskSlideSelection[sec]!==false;
+          return '<label style="display:inline-flex;align-items:center;gap:6px;font-size:13px;font-weight:600;color:var(--ink);text-transform:none;cursor:pointer">'+
+            '<input type="checkbox" data-f="kioskSlideSelection.'+sec+'"'+(checked?" checked":"")+"> "+esc(KIOSK_SECTION_LABELS[sec])+
+          "</label>";
+        }).join("")+
+      "</div>"+
+      '<div class="btnrow" style="align-items:center">'+
+        '<input class="inp" type="text" style="width:220px" placeholder="Nom du scénario" data-f="kioskScenarioName" value="'+esc(S.kioskScenarioName)+'">'+
+        '<button class="btn bsm" data-a="save-scenario">'+ICON_SAVE+' Enregistrer comme scénario</button>'+
+      "</div>"+
+    "</div></div>"+
+  "</div>";
   return kioskFilterBar+
     alertsBlock+
     buildKpiTilesHTML(list)+
@@ -2532,6 +2548,18 @@ function kioskRender(){
       "<h3 "+SUB+">Répartition par outil"+titleSuffix+"</h3>"+
       barListHTML(byOutil, Math.min(byOutil.length,8))+
     "</div>";
+  } else if(section==="priorite"){
+    var byPrio = ["P1","P2","P3",""].map(function(p){
+      return { label: PRIORITE_LABEL[p], count: list.filter(function(a){ return (a.priorite||"")===p; }).length };
+    });
+    var prioMax = Math.max.apply(null, byPrio.map(function(g){ return g.count; }));
+    body = '<div class="kiosk-body">'+
+      "<h3 "+SUB+">Répartition par priorité"+titleSuffix+"</h3>"+
+      '<div class="barlist">'+byPrio.map(function(g){
+        var pct = prioMax ? Math.round(g.count/prioMax*100) : 0;
+        return '<div class="barrow"><div class="lbl">'+esc(g.label)+'</div><div class="bartrack"><div class="barfill" style="width:'+pct+'%"></div></div><div class="cnt">'+g.count+"</div></div>";
+      }).join("")+"</div>"+
+    "</div>";
   } else if(section==="visibilite"){
     var correctifs = list.filter(function(a){ return a.correctif; }).length;
     var contournements = list.filter(function(a){ return a.contournement; }).length;
@@ -2552,6 +2580,23 @@ function kioskRender(){
       "</div>"+
       (overdueList.length ? '<div style="max-width:640px;margin:28px auto 0;display:flex;flex-direction:column;gap:8px">'+overdueRows+"</div>" : "")+
     "</div>";
+  } else if(section==="anciennete"){
+    var openList = list.filter(function(a){ return STATUTS_OUVERTS.indexOf(a.statut)===-1; });
+    var byAge = KIOSK_AGE_BUCKETS.map(function(b){
+      var count = openList.filter(function(a){
+        var age = daysSince(a.dateDeclaration);
+        return age!==null && age>=b.min && age<=b.max;
+      }).length;
+      return { label: b.label, count: count };
+    });
+    var ageMax = Math.max.apply(null, byAge.map(function(g){ return g.count; }));
+    body = '<div class="kiosk-body">'+
+      "<h3 "+SUB+">Ancienneté des tickets ouverts"+titleSuffix+"</h3>"+
+      '<div class="barlist">'+byAge.map(function(g){
+        var pct = ageMax ? Math.round(g.count/ageMax*100) : 0;
+        return '<div class="barrow"><div class="lbl">'+esc(g.label)+'</div><div class="bartrack"><div class="barfill" style="width:'+pct+'%"></div></div><div class="cnt">'+g.count+"</div></div>";
+      }).join("")+"</div>"+
+    "</div>";
   } else if(section==="indicateurs"){
     var createdFlow = weeklyFlow(list, "dateDeclaration", 8);
     var resolvedFlow = weeklyFlow(list, "dateResolution", 8);
@@ -2568,6 +2613,21 @@ function kioskRender(){
         '<div><div class="n" style="color:#7BDBA6">'+k.mep+'</div><div class="l">MEP réalisées</div>'+kioskDeltaHTML(resolvedFlow[li],resolvedFlow[pi],"up")+"</div>"+
         '<div><div class="n" style="color:#7BDBA6">'+k.taux+'%</div><div class="l">Taux de résolution</div>'+kioskDeltaHTML(tauxFlow[li],tauxFlow[pi],"up")+"</div>"+
       "</div></div>";
+  } else if(section==="mep"){
+    var mepList = list.filter(function(a){ return !a.mep && (a.correctif||"").trim(); });
+    var mepRows = mepList.slice(0,8).map(function(a){
+      return '<div style="display:flex;justify-content:space-between;gap:14px;padding:9px 14px;background:rgba(255,255,255,.06);border-radius:8px;font-size:14.5px;text-align:left">'+
+        "<span><b>"+esc(a.outil)+"</b> · "+esc(a.site||"–")+"</span>"+
+        '<span style="opacity:.75;white-space:nowrap">'+(a.echeance?fmtDate(a.echeance):"Sans échéance")+"</span>"+
+      "</div>";
+    }).join("");
+    if(mepList.length>8) mepRows += '<div style="opacity:.7;font-size:13px;margin-top:4px">+'+(mepList.length-8)+" autre(s)</div>";
+    body = '<div class="kiosk-body" style="text-align:center">'+
+      "<h3 "+SUB+">MEP à venir"+titleSuffix+"</h3>"+
+      (mepList.length ?
+        '<div style="max-width:640px;margin:10px auto 0;display:flex;flex-direction:column;gap:8px">'+mepRows+"</div>"
+        : '<p class="small mut" style="opacity:.75">Aucune mise en production en attente.</p>')+
+    "</div>";
   } else if(section==="donut"){
     body = '<div class="kiosk-body" style="text-align:center">'+(titleSuffix?"<h3 "+SUB+" style=\"margin-bottom:14px\">Répartition par statut"+titleSuffix+"</h3>":"")+donutChartHTML(list,k)+"</div>";
   } else if(section==="trend"){
@@ -2804,6 +2864,10 @@ function handleAction(a, v, id){
     case "toggle-filters-accordion":
       S.reportFiltersOpen = !S.reportFiltersOpen;
       if(!S.reportFiltersOpen) S.openReportFilter = null;
+      render();
+      break;
+    case "toggle-brief-config":
+      S.briefConfigOpen = !S.briefConfigOpen;
       render();
       break;
     case "toggle-report-filter": {
