@@ -86,9 +86,10 @@ service cloud.firestore {
   }
 
   function isValidSettingsWrite(data) {
-    return data.keys().hasOnly(['outils', 'statuts'])
+    return data.keys().hasOnly(['outils', 'statuts', 'kioskScenarios'])
       && data.outils is list
-      && data.statuts is list;
+      && data.statuts is list
+      && (!('kioskScenarios' in data) || data.kioskScenarios is list);
   }
 
   function isValidAnomaly(data) {

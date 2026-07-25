@@ -572,13 +572,16 @@ var S = {
   anomalies: [],
   archives: [],
   myCpAnomalies: [],
-  settings: { outils: OUTILS_DEFAULT.slice(), statuts: STATUTS_DEFAULT.slice() },
+  settings: { outils: OUTILS_DEFAULT.slice(), statuts: STATUTS_DEFAULT.slice(), kioskScenarios: [] },
   forms: {
     declare: {}, saisie: {}, edit: {},
     settings: { newOutil:"", newStatut:"", currentPin:"", newPin:"", newPin2:"" }
   },
   filters: { q:"", site:"all", outil:"all", statut:"all", priorite:"all" },
   kioskFilters: { site:"all", statut:"all", outil:"all", period:"all" },
+  kioskSlideSelection: {},
+  activeScenarioName: null,
+  kioskScenarioName: "",
   reportFilters: { site:[], outil:[], severite:[], priorite:[], statut:[] },
   openReportFilter: null,
   reportFiltersOpen: false,
@@ -625,6 +628,18 @@ function sortArrow(field){
 var THEME_KEY = "tgvcare_theme_v1";
 var dragState = { id: null };
 var KIOSK_SECTIONS = ["centralisation","outils","visibilite","indicateurs","donut","trend"];
+var KIOSK_SECTION_LABELS = {
+  centralisation: "Par site",
+  outils: "Par outil",
+  visibilite: "Visibilité",
+  indicateurs: "Indicateurs",
+  donut: "Répartition statuts",
+  trend: "Tendance"
+};
+function activeKioskSections(){
+  var active = KIOSK_SECTIONS.filter(function(s){ return S.kioskSlideSelection[s]!==false; });
+  return active.length ? active : KIOSK_SECTIONS.slice();
+}
 var STATUT_HEX = {
   "À qualifier":"#8A93A8","En cadrage":"#8B5CF6","Analyse SI":"#5B2A8C","Attente info":"#2454C7",
   "En attente livraison correctif":"#DB8A2E","Test recette validé":"#0EA5A5","Résolu":"#2E9F6A",
@@ -881,7 +896,7 @@ function load(){
   }, function(e){ toast("Erreur de synchronisation : "+e.message, true); });
   db.doc("settings/global").onSnapshot(function(doc){
     var data = doc.exists ? doc.data() : {};
-    S.settings = Object.assign({outils:OUTILS_DEFAULT.slice(),statuts:STATUTS_DEFAULT.slice()}, data);
+    S.settings = Object.assign({outils:OUTILS_DEFAULT.slice(),statuts:STATUTS_DEFAULT.slice(),kioskScenarios:[]}, data);
     OUTILS_DEFAULT.forEach(function(o){ if(S.settings.outils.indexOf(o)===-1) S.settings.outils.push(o); });
     STATUTS_DEFAULT.forEach(function(st){ if(S.settings.statuts.indexOf(st)===-1) S.settings.statuts.push(st); });
     render();
@@ -1840,7 +1855,26 @@ function adminOverview(){
     '<select class="inp" style="width:auto" data-f="kioskFilters.period">'+
       Object.keys(KIOSK_PERIODS).map(function(v){ return opt(v, KIOSK_PERIODS[v], S.kioskFilters.period); }).join("")+
     "</select>"+
-  "</div>";
+  "</div>"+
+  '<div class="btnrow noprint" style="margin-bottom:10px;flex-wrap:wrap">'+
+    '<span class="small mut" style="align-self:center">Slides :</span>'+
+    KIOSK_SECTIONS.map(function(sec){
+      var checked = S.kioskSlideSelection[sec]!==false;
+      return '<label style="display:inline-flex;align-items:center;gap:6px;font-size:13px;font-weight:600;color:var(--ink);text-transform:none;cursor:pointer">'+
+        '<input type="checkbox" data-f="kioskSlideSelection.'+sec+'"'+(checked?" checked":"")+"> "+esc(KIOSK_SECTION_LABELS[sec])+
+      "</label>";
+    }).join("")+
+  "</div>"+
+  '<div class="btnrow noprint" style="margin-bottom:16px;align-items:center">'+
+    '<input class="inp" type="text" style="width:220px" placeholder="Nom du scénario" data-f="kioskScenarioName" value="'+esc(S.kioskScenarioName)+'">'+
+    '<button class="btn bsm" data-a="save-scenario">💾 Enregistrer comme scénario</button>'+
+  "</div>"+
+  (S.settings.kioskScenarios.length ? '<div class="btnrow noprint" style="margin-bottom:18px;flex-wrap:wrap">'+
+    S.settings.kioskScenarios.map(function(sc){
+      return '<span class="chip hi" style="cursor:pointer" data-a="launch-scenario" data-id="'+esc(sc.id)+'">▶ '+esc(sc.name)+"</span>"+
+        '<button class="btn bsm bd" data-a="delete-scenario" data-id="'+esc(sc.id)+'" title="Supprimer" style="padding:2px 6px">✕</button>';
+    }).join("")+
+  "</div>" : "");
   return kioskFilterBar+
     alertsBlock+
     buildKpiTilesHTML(list)+
@@ -2437,7 +2471,7 @@ function kioskPrintReportHTML(){
   if(S.kioskFilters.statut!=="all") scopeBits.push(S.kioskFilters.statut);
   if(S.kioskFilters.outil!=="all") scopeBits.push(S.kioskFilters.outil);
   if(S.kioskFilters.period!=="all") scopeBits.push(KIOSK_PERIODS[S.kioskFilters.period]);
-  var scope = scopeBits.length ? scopeBits.join(" · ") : "Toutes données";
+  var scope = S.activeScenarioName || (scopeBits.length ? scopeBits.join(" · ") : "Toutes données");
   var kpiTile = function(n,label,color){
     return '<div class="kpi"><div class="kpi-top"><div class="n"'+(color?' style="color:'+color+'"':"")+">"+n+"</div></div>"+
       '<div class="l">'+esc(label)+"</div></div>";
@@ -2476,7 +2510,8 @@ function kioskRender(){
   var list = kioskFilteredAnomalies();
   var k = computeKPIs(list);
   var overdueList = list.filter(function(a){ return a.echeance && daysSince(a.echeance)>0 && STATUTS_OUVERTS.indexOf(a.statut)===-1; });
-  var section = KIOSK_SECTIONS[S.kioskIdx % KIOSK_SECTIONS.length];
+  var sections = activeKioskSections();
+  var section = sections[S.kioskIdx % sections.length];
   var body = "";
   var SUB = 'style="color:#fff;font-size:19px;font-weight:600;margin-bottom:26px;text-align:center;opacity:.9"';
   var scopeBits0 = [];
@@ -2484,7 +2519,7 @@ function kioskRender(){
   if(S.kioskFilters.statut!=="all") scopeBits0.push(S.kioskFilters.statut);
   if(S.kioskFilters.outil!=="all") scopeBits0.push(S.kioskFilters.outil);
   if(S.kioskFilters.period!=="all") scopeBits0.push(KIOSK_PERIODS[S.kioskFilters.period]);
-  var titleSuffix = scopeBits0.length ? " — "+esc(scopeBits0.join(" · ")) : "";
+  var titleSuffix = S.activeScenarioName ? " — "+esc(S.activeScenarioName) : (scopeBits0.length ? " — "+esc(scopeBits0.join(" · ")) : "");
   if(section==="centralisation"){
     var bySite = groupCount(list, "site");
     body = '<div class="kiosk-body">'+
@@ -2540,7 +2575,7 @@ function kioskRender(){
   }
   var scopeBits = scopeBits0;
   if(S.kioskFilters.period!=="all") scopeBits.push(KIOSK_PERIODS[S.kioskFilters.period]);
-  var eyebrow = "TGV CARE · UO Sud-Est" + (scopeBits.length ? " · "+scopeBits.join(" · ") : "");
+  var eyebrow = "TGV CARE · UO Sud-Est" + (S.activeScenarioName ? " · "+S.activeScenarioName : (scopeBits.length ? " · "+scopeBits.join(" · ") : ""));
   el.innerHTML = '<div class="kiosk">'+
     '<div class="kiosk-toolbar"><button data-a="kiosk-export">⬇ Exporter PDF</button><button data-a="kiosk-exit">Quitter ✕</button></div>'+
     '<button class="kiosk-nav kiosk-prev" data-a="kiosk-prev" aria-label="Précédent">‹</button>'+
@@ -2549,7 +2584,7 @@ function kioskRender(){
     "<h2>Suivi des anomalies</h2>"+
     '<div class="kiosk-date">Point du '+fmtDate(todayISO())+"</div>"+
     body+
-    '<div class="kiosk-dots">'+KIOSK_SECTIONS.map(function(s,i){ return '<span class="'+(i===S.kioskIdx%KIOSK_SECTIONS.length?"on":"")+'" data-a="kiosk-goto" data-v="'+i+'"></span>'; }).join("")+"</div>"+
+    '<div class="kiosk-dots">'+sections.map(function(s,i){ return '<span class="'+(i===S.kioskIdx%sections.length?"on":"")+'" data-a="kiosk-goto" data-v="'+i+'"></span>'; }).join("")+"</div>"+
   "</div>";
 }
 function startKiosk(){
@@ -2627,10 +2662,43 @@ function handleAction(a, v, id){
       S.detailId = null; render();
       break;
     case "kiosk-start":
+      S.activeScenarioName = null;
       startKiosk();
       break;
     case "kiosk-exit":
       stopKiosk();
+      break;
+    case "save-scenario": {
+      var scName = (S.kioskScenarioName||"").trim();
+      if(!scName){ toast("Merci de donner un nom au scénario.", true); return; }
+      S.settings.kioskScenarios.push({
+        id: uid(),
+        name: scName,
+        filters: Object.assign({}, S.kioskFilters),
+        sections: activeKioskSections()
+      });
+      saveSettings();
+      S.kioskScenarioName = "";
+      render();
+      toast("Scénario enregistré.");
+      break;
+    }
+    case "launch-scenario": {
+      var scenario = S.settings.kioskScenarios.filter(function(x){ return x.id===id; })[0];
+      if(!scenario) return;
+      S.kioskFilters = Object.assign({site:"all",statut:"all",outil:"all",period:"all"}, scenario.filters);
+      S.kioskSlideSelection = {};
+      KIOSK_SECTIONS.forEach(function(sec){ S.kioskSlideSelection[sec] = scenario.sections.indexOf(sec)!==-1; });
+      S.activeScenarioName = scenario.name;
+      startKiosk();
+      break;
+    }
+    case "delete-scenario":
+      if(confirm("Supprimer ce scénario ?")){
+        S.settings.kioskScenarios = S.settings.kioskScenarios.filter(function(x){ return x.id!==id; });
+        saveSettings();
+        render();
+      }
       break;
     case "kiosk-export":
       document.getElementById("kiosk-print-out").innerHTML = kioskPrintReportHTML();
@@ -2638,11 +2706,11 @@ function handleAction(a, v, id){
       window.print();
       break;
     case "kiosk-next":
-      S.kioskIdx = (S.kioskIdx + 1) % KIOSK_SECTIONS.length;
+      S.kioskIdx = (S.kioskIdx + 1) % activeKioskSections().length;
       kioskRender();
       break;
     case "kiosk-prev":
-      S.kioskIdx = (S.kioskIdx - 1 + KIOSK_SECTIONS.length) % KIOSK_SECTIONS.length;
+      S.kioskIdx = (S.kioskIdx - 1 + activeKioskSections().length) % activeKioskSections().length;
       kioskRender();
       break;
     case "kiosk-goto":
