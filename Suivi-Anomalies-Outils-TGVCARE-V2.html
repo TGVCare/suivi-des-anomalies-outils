@@ -578,7 +578,7 @@ var S = {
     settings: { newOutil:"", newStatut:"", currentPin:"", newPin:"", newPin2:"" }
   },
   filters: { q:"", site:"all", outil:"all", statut:"all", priorite:"all" },
-  kioskFilters: { site:"all", period:"all" },
+  kioskFilters: { site:"all", statut:"all", outil:"all", period:"all" },
   reportFilters: { site:[], outil:[], severite:[], priorite:[], statut:[] },
   openReportFilter: null,
   reportFiltersOpen: false,
@@ -1623,6 +1623,8 @@ function kioskFilteredAnomalies(){
   var f = S.kioskFilters;
   return S.anomalies.filter(function(a){
     if(f.site!=="all" && a.site!==f.site) return false;
+    if(f.statut!=="all" && a.statut!==f.statut) return false;
+    if(f.outil!=="all" && a.outil!==f.outil) return false;
     if(f.period!=="all"){
       var age = daysSince(a.dateDeclaration);
       if(age===null || age>parseInt(f.period,10)) return false;
@@ -1828,6 +1830,12 @@ function adminOverview(){
     '<button class="btn" data-a="kiosk-start">'+ICON_BRIEF+' Mode brief</button>'+
     '<select class="inp" style="width:auto" data-f="kioskFilters.site">'+
       ["all"].concat(SITES).map(function(v){ return opt(v, v==="all"?"Tous les sites":v, S.kioskFilters.site); }).join("")+
+    "</select>"+
+    '<select class="inp" style="width:auto" data-f="kioskFilters.statut">'+
+      ["all"].concat(S.settings.statuts).map(function(v){ return opt(v, v==="all"?"Tous les statuts":v, S.kioskFilters.statut); }).join("")+
+    "</select>"+
+    '<select class="inp" style="width:auto" data-f="kioskFilters.outil">'+
+      ["all"].concat(S.settings.outils).map(function(v){ return opt(v, v==="all"?"Tous les outils":v, S.kioskFilters.outil); }).join("")+
     "</select>"+
     '<select class="inp" style="width:auto" data-f="kioskFilters.period">'+
       Object.keys(KIOSK_PERIODS).map(function(v){ return opt(v, KIOSK_PERIODS[v], S.kioskFilters.period); }).join("")+
@@ -2426,6 +2434,8 @@ function kioskPrintReportHTML(){
   var overdueList = list.filter(function(a){ return a.echeance && daysSince(a.echeance)>0 && STATUTS_OUVERTS.indexOf(a.statut)===-1; });
   var scopeBits = [];
   if(S.kioskFilters.site!=="all") scopeBits.push(S.kioskFilters.site);
+  if(S.kioskFilters.statut!=="all") scopeBits.push(S.kioskFilters.statut);
+  if(S.kioskFilters.outil!=="all") scopeBits.push(S.kioskFilters.outil);
   if(S.kioskFilters.period!=="all") scopeBits.push(KIOSK_PERIODS[S.kioskFilters.period]);
   var scope = scopeBits.length ? scopeBits.join(" · ") : "Toutes données";
   var kpiTile = function(n,label,color){
@@ -2524,6 +2534,8 @@ function kioskRender(){
   }
   var scopeBits = [];
   if(S.kioskFilters.site!=="all") scopeBits.push(S.kioskFilters.site);
+  if(S.kioskFilters.statut!=="all") scopeBits.push(S.kioskFilters.statut);
+  if(S.kioskFilters.outil!=="all") scopeBits.push(S.kioskFilters.outil);
   if(S.kioskFilters.period!=="all") scopeBits.push(KIOSK_PERIODS[S.kioskFilters.period]);
   var eyebrow = "TGV CARE · UO Sud-Est" + (scopeBits.length ? " · "+scopeBits.join(" · ") : "");
   el.innerHTML = '<div class="kiosk">'+
