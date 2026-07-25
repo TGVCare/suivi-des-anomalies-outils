@@ -12,13 +12,36 @@ function sha256hex(str) {
   return crypto.createHash("sha256").update(str, "utf8").digest("hex");
 }
 
+const PIN_MAX_ATTEMPTS = 5;
+const PIN_BASE_LOCK_SECONDS = 30;
+
 exports.verifyPin = onCall(async (request) => {
   const pin = request.data && request.data.pin;
   if (!pin || typeof pin !== "string") throw new HttpsError("invalid-argument", "PIN manquant.");
+
+  const attemptsRef = db.doc("secrets/pinAttempts");
+  const attemptsSnap = await attemptsRef.get();
+  const attempts = attemptsSnap.exists ? attemptsSnap.data() : { fails: 0, lockUntil: 0 };
+  if (attempts.lockUntil && attempts.lockUntil > Date.now()) {
+    throw new HttpsError("resource-exhausted", "Trop de tentatives. Réessaie plus tard.");
+  }
+
   const snap = await db.doc("secrets/pinHash").get();
   const stored = snap.exists ? snap.data().pinHash : null;
-  if (!stored) return { ok: false };
-  return { ok: sha256hex(pin) === stored };
+  const ok = !!stored && sha256hex(pin) === stored;
+
+  if (ok) {
+    await attemptsRef.set({ fails: 0, lockUntil: 0 });
+    const token = await admin.auth().createCustomToken("tgvcare-admin", { admin: true });
+    return { ok: true, token };
+  }
+
+  const fails = (attempts.fails || 0) + 1;
+  const lockUntil = fails >= PIN_MAX_ATTEMPTS
+    ? Date.now() + PIN_BASE_LOCK_SECONDS * 1000 * Math.pow(2, fails - PIN_MAX_ATTEMPTS)
+    : 0;
+  await attemptsRef.set({ fails, lockUntil });
+  return { ok: false };
 });
 
 exports.changePin = onCall(async (request) => {

@@ -18,13 +18,17 @@ service cloud.firestore {
 
     // ---- anomalies: the core dataset. Public read (dashboard/kiosk/consultation
     // are public-facing by design). Create is open (public declaration form) but
-    // field-validated to block spoofed/garbage data. Update/delete cannot be
-    // restricted to "admin only" without real auth -- see explication in chat.
+    // field-validated to block spoofed/garbage data. Update is admin-only, except
+    // one narrow carve-out: the public declaration flow attaches a notifyToken to
+    // the ticket it JUST created (see saveAnomaly() in the client), so a non-admin
+    // may flip notifyToken from "" to a value and touch nothing else. Delete is
+    // admin-only.
     match /anomalies/{anomalyId} {
       allow read: if true;
       allow create: if isValidAnomaly(request.resource.data);
-      allow update: if isValidAnomaly(request.resource.data);
-      allow delete: if true; // TODO: gate to admin once Firebase Auth is added
+      allow update: if isValidAnomaly(request.resource.data)
+                    && (isAdmin() || isNotifyTokenOnlyUpdate());
+      allow delete: if isAdmin();
     }
 
     // ---- admin notification feed: derived from anomalies, not more sensitive.
@@ -32,7 +36,7 @@ service cloud.firestore {
     match /notifications/{id} {
       allow read: if true;
       allow create: if true;
-      allow update, delete: if true; // TODO: gate to admin once Firebase Auth is added
+      allow update, delete: if isAdmin();
     }
 
     // ---- FCM tokens for admin push. No client ever needs to read this collection
@@ -58,19 +62,27 @@ service cloud.firestore {
       allow update: if false;
     }
 
-    // ---- backups: full data snapshots (anomalies + settings). Left open for now
-    // (matches pre-existing risk level, no worse than before this change) -- cannot
-    // be safely restricted to admin-only without real auth. Note: settings snapshots
-    // no longer contain pinHash once it moves to /secrets, so this is a much smaller
-    // exposure than before even while left open. Revisit in Phase 2.
+    // ---- backups: full data snapshots (anomalies + settings). Admin-only: the
+    // scheduled Cloud Function backup uses the Admin SDK and bypasses these rules
+    // entirely, so restricting client access here doesn't affect it. Only the
+    // admin "Réglages" backup/restore UI reads/writes this collection.
     match /archives/{id} {
-      allow read, write: if true;
+      allow read, write: if isAdmin();
     }
 
     // ---- deny everything else by default
     match /{document=**} {
       allow read, write: if false;
     }
+  }
+
+  function isAdmin() {
+    return request.auth != null && request.auth.token.admin == true;
+  }
+
+  function isNotifyTokenOnlyUpdate() {
+    return request.resource.data.diff(resource.data).affectedKeys().hasOnly(['notifyToken'])
+      && resource.data.notifyToken == "";
   }
 
   function isValidSettingsWrite(data) {

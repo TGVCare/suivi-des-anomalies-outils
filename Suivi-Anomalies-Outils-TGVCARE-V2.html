@@ -465,6 +465,7 @@ var MY_CP_KEY = "myCp";
 <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-functions-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-auth-compat.js"></script>
 <script>
 "use strict";
 var firebaseConfig = {
@@ -478,9 +479,14 @@ var firebaseConfig = {
 };
 firebase.initializeApp(firebaseConfig);
 var db = firebase.firestore();
+var auth = firebase.auth();
 var cloudFunctions = firebase.functions();
 function verifyPinRemote(pin){
-  return cloudFunctions.httpsCallable("verifyPin")({pin: pin}).then(function(res){ return !!(res.data && res.data.ok); });
+  return cloudFunctions.httpsCallable("verifyPin")({pin: pin}).then(function(res){
+    var ok = !!(res.data && res.data.ok);
+    if(ok && res.data.token) return auth.signInWithCustomToken(res.data.token).then(function(){ return true; });
+    return ok;
+  });
 }
 function changePinRemote(currentPin, newPin){
   return cloudFunctions.httpsCallable("changePin")({currentPin: currentPin, newPin: newPin}).then(function(res){ return !!(res.data && res.data.ok); });
@@ -836,7 +842,12 @@ function restoreFromArchive(archiveId){
 }
 function load(){
   try{ S.currentAuthor = localStorage.getItem(AUTHOR_KEY) || ""; }catch(e){}
-  try{ if(localStorage.getItem("adminAuthed")==="1") S.authed = true; }catch(e){}
+  auth.onAuthStateChanged(function(user){
+    var wasAuthed = S.authed;
+    S.authed = !!(user && !user.isAnonymous);
+    if(S.authed) localStorage.setItem("adminAuthed", "1"); else localStorage.removeItem("adminAuthed");
+    if(wasAuthed !== S.authed) render();
+  });
   if(getMyCp()) startMyCpListener(getMyCp());
   db.collection("anomalies").onSnapshot(function(snap){
     var arr = [];
@@ -2527,6 +2538,7 @@ function handleAction(a, v, id){
       })["catch"](function(e){ toast("Erreur de connexion : "+e.message, true); });
       break;
     case "logout":
+      auth.signOut();
       S.authed=false; S.page="home"; localStorage.removeItem("adminAuthed"); render();
       break;
     case "submit-declare": {
