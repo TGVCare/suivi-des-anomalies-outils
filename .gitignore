@@ -1,0 +1,18 @@
+node_modules/
+.DS_Store
+.firebase/
+.claude/settings.local.json
+
+# secrets — never commit
+*firebase-adminsdk*.json
+*.pem
+*.key
+
+# personal / non-app files sitting in this folder
+*.docx
+*.xlsx
+*.pptx
+~$*
+*.png
+*.jpg
+*.jpeg
