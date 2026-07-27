@@ -274,7 +274,7 @@ table.tbl td.desc{max-width:320px}
 .kpi .delta.flat{background:var(--grey-bg);color:var(--grey)}
 .kpi .spark{display:block;margin-top:6px;width:100%;height:26px}
 
-/* ---- vue toggle (tableau / cartes / kanban) ---- */
+/* ---- vue toggle (tableau / cartes) ---- */
 .viewtoggle{display:inline-flex;border:1px solid var(--line);border-radius:9px;overflow:hidden}
 .viewtoggle button{background:var(--card);border:none;padding:8px 13px;font-size:12.5px;font-weight:700;color:var(--mu);border-right:1px solid var(--line)}
 .viewtoggle button:last-child{border-right:none}
@@ -337,24 +337,6 @@ table.tbl td.desc{max-width:320px}
 .stepper .bar{width:22px;height:2px;background:var(--line);margin:0 4px}
 .stepper .bar.done{background:var(--ok)}
 .stepper.rejected{color:var(--p1);font-weight:700;font-size:12.5px}
-
-/* ---- kanban ---- */
-.kanban-scroll{overflow-x:auto;padding-bottom:10px}
-.kanban-board{display:flex;gap:12px;align-items:flex-start;min-height:60px}
-.kanban-col{background:var(--grey-bg);border-radius:14px;padding:10px;width:250px;flex-shrink:0}
-.kanban-col.dragover{outline:2px dashed var(--hi);outline-offset:-4px}
-.kanban-col-h{display:flex;justify-content:space-between;align-items:center;padding:4px 6px 10px;font-size:12px;font-weight:800;text-transform:uppercase;color:var(--mu);letter-spacing:.02em}
-.kanban-cards{display:flex;flex-direction:column;gap:8px;min-height:30px}
-.kcard{background:var(--card);border:1px solid var(--line);border-left:4px solid var(--grey);border-radius:11px;padding:10px 11px;font-size:12.5px;box-shadow:var(--shadow)}
-.kcard.p1{border-left-color:var(--p1)}
-.kcard.p2{border-left-color:var(--p2)}
-.kcard.p3{border-left-color:var(--p3)}
-.kcard.overdue{background:var(--p1-bg)}
-.kcard[draggable="true"]{cursor:grab}
-.kcard.dragging{opacity:.4}
-.kcard .kt{font-weight:700;margin-bottom:4px}
-.kcard .kd{color:var(--mu);display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;margin-bottom:6px}
-.kcard .kf{display:flex;justify-content:space-between;align-items:center;gap:6px}
 
 /* ---- kiosk (mode brief) ---- */
 .kiosk{position:fixed;inset:0;background:radial-gradient(1100px 750px at 50% -8%,#332352 0%,#1B1628 45%,#120F1A 78%);color:#fff;z-index:500;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:40px;overflow:hidden}
@@ -632,7 +614,6 @@ function sortArrow(field){
 }
 
 var THEME_KEY = "tgvcare_theme_v1";
-var dragState = { id: null };
 var KIOSK_SECTIONS = ["centralisation","outils","priorite","visibilite","anciennete","indicateurs","mep","donut","trend"];
 var KIOSK_SECTION_LABELS = {
   centralisation: "Par site",
@@ -1845,12 +1826,11 @@ function renderAuthorGate(){
   "</div>";
 }
 function renderAdmin(){
-  var tabs = [["overview","Vue d'ensemble"],["liste","Anomalies"],["notifications","Notifications"+(S.notifications.length?" ("+S.notifications.length+")":"")],["kanban","Kanban"],["saisie","Saisie manuelle"],["rapport","Rapport"],["historique","Historique"],["reglages","Réglages"]];
+  var tabs = [["overview","Vue d'ensemble"],["liste","Anomalies"],["notifications","Notifications"+(S.notifications.length?" ("+S.notifications.length+")":"")],["saisie","Saisie manuelle"],["rapport","Rapport"],["historique","Historique"],["reglages","Réglages"]];
   var content = "";
   if(S.adminTab==="overview") content = adminOverview();
   else if(S.adminTab==="liste") content = adminListe();
   else if(S.adminTab==="notifications") content = adminNotifications();
-  else if(S.adminTab==="kanban") content = adminKanban();
   else if(S.adminTab==="saisie") content = adminSaisie();
   else if(S.adminTab==="rapport") content = adminRapport();
   else if(S.adminTab==="historique") content = adminHistorique();
@@ -1984,55 +1964,6 @@ function adminTableHTML(list){
   return '<div class="tblwrap"><table class="tbl"><thead><tr>'+
     "<th data-a=\"sort\" data-v=\"priorite\" class=\"sortable\">Priorité"+sortArrow("priorite")+"</th><th data-a=\"sort\" data-v=\"outil\" class=\"sortable\">Outil"+sortArrow("outil")+"</th><th>Anomalie</th><th data-a=\"sort\" data-v=\"site\" class=\"sortable\">Site"+sortArrow("site")+"</th><th data-a=\"sort\" data-v=\"statut\" class=\"sortable\">Statut"+sortArrow("statut")+"</th><th data-a=\"sort\" data-v=\"pilote\" class=\"sortable\">Pilote"+sortArrow("pilote")+"</th><th data-a=\"sort\" data-v=\"dateDeclaration\" class=\"sortable\">Déclarée le"+sortArrow("dateDeclaration")+"</th><th></th>"+
   "</tr></thead><tbody>"+rows+"</tbody></table></div>";
-}
-function kanbanHTML(list, editable){
-  var cols = S.settings.statuts;
-  var byStatut = {};
-  cols.forEach(function(c){ byStatut[c] = []; });
-  list.forEach(function(a){ if(!byStatut[a.statut]) byStatut[a.statut]=[]; byStatut[a.statut].push(a); });
-  var board = cols.map(function(c){
-    var items = byStatut[c]||[];
-    var cardsHtml = items.map(function(a){
-      var overdue = a.echeance && daysSince(a.echeance)>0 && STATUTS_OUVERTS.indexOf(a.statut)===-1;
-      var cls = (a.priorite==="P1"?"p1":a.priorite==="P2"?"p2":a.priorite==="P3"?"p3":"")+(overdue?" overdue":"");
-      var refBits = [];
-      if(a.ticket) refBits.push("Ticket "+esc(a.ticket));
-      if(a.jira) refBits.push("Jira "+esc(a.jira));
-      var refLine = refBits.length ? '<div class="small mut" style="margin-top:2px">'+refBits.join(" · ")+"</div>" : "";
-      return '<div class="kcard '+cls+'"'+(editable?' draggable="true"':"")+' data-a="show-detail" data-id="'+esc(a.id)+'">'+
-        '<div class="kt">'+esc(a.outil)+"</div>"+
-        '<div class="kd">'+esc(a.descriptif)+"</div>"+
-        refLine+
-        '<div class="kf">'+(a.pilote?avatarHTML(a.pilote):'<span class="small mut">–</span>')+ageBadgeHTML(a)+"</div>"+
-      "</div>";
-    }).join("");
-    return '<div class="kanban-col" data-col="'+esc(c)+'"><div class="kanban-col-h"><span>'+esc(c)+"</span><span>"+items.length+"</span></div>"+
-      '<div class="kanban-cards">'+cardsHtml+"</div></div>";
-  }).join("");
-  return '<div class="kanban-scroll"><div class="kanban-board">'+board+"</div></div>";
-}
-function adminKanban(){
-  var list = S.anomalies;
-  var detail = S.detailId ? list.filter(function(x){ return x.id===S.detailId; })[0] : null;
-  return '<p class="mut small" style="margin-bottom:14px">Glisse une carte vers une autre colonne pour changer son statut. Clique une carte pour voir le détail.</p>'+
-    (detail ? detailPanelWrap(detail) : "")+
-    '<div id="admin-kanban-results">'+kanbanHTML(list, true)+"</div>";
-}
-function moveAnomalyToStatut(id, newStatut){
-  var idx = -1;
-  S.anomalies.forEach(function(x,i){ if(x.id===id) idx=i; });
-  if(idx===-1) return;
-  var before = S.anomalies[idx];
-  if(before.statut===newStatut) return;
-  var after = Object.assign({}, before, {statut:newStatut});
-  var diffs = diffSummary(before, after);
-  after.historique = (before.historique||[]).concat([{ts: nowISOTime(), auteur: S.currentAuthor||"Administration", texte: diffs.join(" · ")+" (glisser-déposer)"}]);
-  S.anomalies[idx] = after;
-  saveAnomaly(after);
-  logAudit("status_change", after, diffs.join(" · ")+" (glisser-déposer)");
-  toast("Déplacée vers « "+newStatut+" ».");
-  var el = document.getElementById("admin-kanban-results");
-  if(el) el.innerHTML = kanbanHTML(S.anomalies, true);
 }
 function adminListe(){
   var editForm = S.editingId ? adminEditForm() : "";
@@ -3195,35 +3126,6 @@ function handleAction(a, v, id){
   app.addEventListener("keydown", function(e){
     if(e.key==="Enter" && e.target && e.target.id==="pin-input"){ handleAction("login"); }
     if(e.key==="Enter" && e.target && e.target.id==="author-gate-input"){ handleAction("confirm-author"); }
-  });
-  app.addEventListener("dragstart", function(e){
-    var card = e.target.closest && e.target.closest(".kcard[draggable=true]");
-    if(!card) return;
-    dragState.id = card.dataset.id;
-    card.classList.add("dragging");
-    if(e.dataTransfer){ e.dataTransfer.effectAllowed = "move"; try{ e.dataTransfer.setData("text/plain", card.dataset.id); }catch(e2){} }
-  });
-  app.addEventListener("dragend", function(e){
-    var card = e.target.closest && e.target.closest(".kcard");
-    if(card) card.classList.remove("dragging");
-  });
-  app.addEventListener("dragover", function(e){
-    var col = e.target.closest && e.target.closest(".kanban-col");
-    if(!col) return;
-    e.preventDefault();
-    col.classList.add("dragover");
-  });
-  app.addEventListener("dragleave", function(e){
-    var col = e.target.closest && e.target.closest(".kanban-col");
-    if(col) col.classList.remove("dragover");
-  });
-  app.addEventListener("drop", function(e){
-    var col = e.target.closest && e.target.closest(".kanban-col");
-    if(!col || !dragState.id) return;
-    e.preventDefault();
-    col.classList.remove("dragover");
-    moveAnomalyToStatut(dragState.id, col.dataset.col);
-    dragState.id = null;
   });
   document.addEventListener("keydown", function(e){
     if(S.page!=="kiosk") return;
