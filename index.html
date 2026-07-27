@@ -1008,6 +1008,29 @@ function diffSummary(before, after){
   });
   return lines;
 }
+function cascadeResolveLinkedJira(merged){
+  var jira = (merged.jira||"").trim();
+  if(!jira) return;
+  var linked = S.anomalies.filter(function(x){
+    return x.id!==merged.id && (x.jira||"").trim()===jira && STATUTS_OUVERTS.indexOf(x.statut)===-1;
+  });
+  if(!linked.length) return;
+  var names = linked.map(function(x){ return "• "+x.outil+" · "+truncate(x.descriptif,50); }).join("\n");
+  var ok = confirm(linked.length+" autre(s) anomalie(s) partage(nt) le même n° Jira ("+jira+") :\n\n"+names+"\n\nLes passer aussi au statut « "+merged.statut+" » ?");
+  if(!ok) return;
+  linked.forEach(function(x){
+    var idx = S.anomalies.findIndex(function(y){ return y.id===x.id; });
+    if(idx===-1) return;
+    var after = Object.assign({}, x, {statut: merged.statut, dateResolution: merged.dateResolution});
+    var diffs = diffSummary(x, after);
+    after.historique = (x.historique||[]).concat([{ts: nowISOTime(), auteur: S.currentAuthor||"Administration", texte: "Résolution groupée via "+jira+(diffs.length?" · "+diffs.join(" · "):"")}]);
+    S.anomalies[idx] = after;
+    saveAnomaly(after);
+    logAudit("status_change", after, "Résolution groupée via "+jira);
+  });
+  toast(linked.length+" anomalie(s) liée(s) mise(s) à jour.");
+  render();
+}
 function historiqueHTML(a){
   var h = (a.historique||[]).slice().reverse();
   if(!h.length) return "";
@@ -2993,6 +3016,9 @@ function handleAction(a, v, id){
         S.anomalies[idx] = merged;
         saveAnomaly(merged);
         toast("Modifications enregistrées.");
+        if(STATUTS_OUVERTS.indexOf(before.statut)===-1 && STATUTS_OUVERTS.indexOf(merged.statut)!==-1){
+          cascadeResolveLinkedJira(merged);
+        }
       }
       S.editingId=null; render();
       break;
