@@ -569,6 +569,7 @@ var S = {
   openReportFilter: null,
   reportFiltersOpen: false,
   briefConfigOpen: false,
+  reglagesOpen: { outils:false, statuts:false, pin:false, sauvegarde:false },
   expanded: {},
   editingId: null,
   declareDone: false,
@@ -2092,6 +2093,13 @@ function adminHistorique(){
     '<div class="tblwrap"><table class="tbl"><thead><tr><th>Date</th><th>Admin</th><th>Action</th><th>Outil / Site</th><th>Détail</th></tr></thead><tbody>'+rows+"</tbody></table></div>"+
     '<p class="small mut" style="margin-top:12px">'+list.length+" entrée(s) affichée(s) sur "+S.auditLog.length+".</p>";
 }
+function reglagesAccordion(key, title, bodyHtml){
+  var open = S.reglagesOpen[key];
+  return '<div class="racc'+(open?" open":"")+'" style="margin-bottom:14px">'+
+    '<button type="button" class="racc-head" data-a="toggle-reglages-accordion" data-v="'+key+'"><span>'+esc(title)+"</span>"+MSEL_CHEV+"</button>"+
+    '<div class="racc-body"><div class="racc-body-inner">'+bodyHtml+"</div></div>"+
+  "</div>";
+}
 function adminReglages(){
   var f = S.forms.settings;
   return '<div class="card pad" style="margin-bottom:18px;max-width:420px">'+
@@ -2102,29 +2110,23 @@ function adminReglages(){
       '<button class="btn bsm bd" data-a="edit-author">Modifier</button>'+
     "</div>"+
   "</div>"+
-  '<div class="grid2">'+
-    '<div class="card pad">'+
-      "<h3>Liste des outils</h3>"+
-      '<div class="list-editor">'+ S.settings.outils.map(function(o){ return '<span class="list-item">'+esc(o)+'<button data-a="remove-outil" data-id="'+esc(o)+'">×</button></span>'; }).join("") +"</div>"+
-      '<div class="btnrow"><input class="inp" style="max-width:220px" type="text" placeholder="Nouvel outil" data-f="forms.settings.newOutil" value="'+esc(f.newOutil)+'"><button class="btn bsm" data-a="add-outil">Ajouter</button></div>'+
-    "</div>"+
-    '<div class="card pad">'+
-      "<h3>Liste des statuts</h3>"+
-      '<div class="list-editor">'+ S.settings.statuts.map(function(o){ return '<span class="list-item">'+esc(o)+'<button data-a="remove-statut" data-id="'+esc(o)+'">×</button></span>'; }).join("") +"</div>"+
-      '<div class="btnrow"><input class="inp" style="max-width:220px" type="text" placeholder="Nouveau statut" data-f="forms.settings.newStatut" value="'+esc(f.newStatut)+'"><button class="btn bsm" data-a="add-statut">Ajouter</button></div>'+
-    "</div>"+
-  "</div>"+
-  '<div class="card pad" style="margin-top:18px;max-width:420px">'+
-    "<h3>Code administrateur (PIN)</h3>"+
-    '<p class="mut small" style="margin:8px 0 14px">Change-le pour restreindre l’accès à l’espace Administration.</p>'+
+  reglagesAccordion("outils", "Liste des outils",
+    '<div class="list-editor">'+ S.settings.outils.map(function(o){ return '<span class="list-item">'+esc(o)+'<button data-a="remove-outil" data-id="'+esc(o)+'">×</button></span>'; }).join("") +"</div>"+
+    '<div class="btnrow"><input class="inp" style="max-width:220px" type="text" placeholder="Nouvel outil" data-f="forms.settings.newOutil" value="'+esc(f.newOutil)+'"><button class="btn bsm" data-a="add-outil">Ajouter</button></div>'
+  )+
+  reglagesAccordion("statuts", "Liste des statuts",
+    '<div class="list-editor">'+ S.settings.statuts.map(function(o){ return '<span class="list-item">'+esc(o)+'<button data-a="remove-statut" data-id="'+esc(o)+'">×</button></span>'; }).join("") +"</div>"+
+    '<div class="btnrow"><input class="inp" style="max-width:220px" type="text" placeholder="Nouveau statut" data-f="forms.settings.newStatut" value="'+esc(f.newStatut)+'"><button class="btn bsm" data-a="add-statut">Ajouter</button></div>'
+  )+
+  reglagesAccordion("pin", "Code administrateur (PIN)",
+    '<p class="mut small" style="margin-bottom:14px">Change-le pour restreindre l’accès à l’espace Administration.</p>'+
     '<div class="field"><label>Code actuel</label><input class="inp" type="password" data-f="forms.settings.currentPin" value="'+esc(f.currentPin)+'"></div>'+
     '<div class="field"><label>Nouveau code</label><input class="inp" type="password" data-f="forms.settings.newPin" value="'+esc(f.newPin)+'"></div>'+
     '<div class="field"><label>Confirmer</label><input class="inp" type="password" data-f="forms.settings.newPin2" value="'+esc(f.newPin2)+'"></div>'+
-    '<button class="btn bp" data-a="change-pin">Mettre à jour le code</button>'+
-  "</div>"+
-  '<div class="card pad" style="margin-top:18px;max-width:420px">'+
-    "<h3>Sauvegarde</h3>"+
-    '<p class="mut small" style="margin:8px 0 16px">Les données sont hébergées sur Firestore (offre gratuite), sans sauvegarde automatique. Télécharge un point de sauvegarde régulièrement, ou avant toute action de la zone sensible ci-dessous.</p>'+
+    '<button class="btn bp" data-a="change-pin">Mettre à jour le code</button>'
+  )+
+  reglagesAccordion("sauvegarde", "Sauvegarde",
+    '<p class="mut small" style="margin-bottom:16px">Les données sont hébergées sur Firestore (offre gratuite), sans sauvegarde automatique. Télécharge un point de sauvegarde régulièrement, ou avant toute action de la zone sensible ci-dessous.</p>'+
     '<div class="btnrow"><button class="btn bp" data-a="export-backup">Télécharger une sauvegarde (JSON)</button><button class="btn" data-a="archive-now">Archiver maintenant</button></div>'+
     (S.archives && S.archives.length ? (
       '<div style="margin-top:14px">'+
@@ -2136,8 +2138,8 @@ function adminReglages(){
           "</div>";
         }).join("")+
       "</div>"
-    ) : '<p class="mut small">Aucune archive pour l’instant.</p>')+
-  "</div>"+
+    ) : '<p class="mut small">Aucune archive pour l’instant.</p>')
+  )+
   '<div class="card pad" style="margin-top:18px;max-width:420px">'+
     "<h3>Notifications push</h3>"+
     '<p class="mut small" style="margin:8px 0 16px">Reçois une notification sur cet appareil dès qu’une nouvelle anomalie est déclarée, même navigateur fermé.</p>'+
@@ -2926,6 +2928,10 @@ function handleAction(a, v, id){
       break;
     case "toggle-brief-config":
       S.briefConfigOpen = !S.briefConfigOpen;
+      render();
+      break;
+    case "toggle-reglages-accordion":
+      S.reglagesOpen[v] = !S.reglagesOpen[v];
       render();
       break;
     case "move-slide-up":
