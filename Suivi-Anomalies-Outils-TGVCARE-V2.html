@@ -593,6 +593,10 @@ var S = {
   lastDeclared: null,
   pinInput: "",
   pinErr: false,
+  pendingAuthorGate: false,
+  authorGateInput: "",
+  auditLog: [],
+  auditFilters: { author:"all", outil:"all", period:"all" },
   _recapText: "",
   currentAuthor: "",
   theme: "auto",
@@ -848,6 +852,26 @@ function saveAnomaly(a){
 function deleteAnomalyRemote(id){
   db.collection("anomalies").doc(id).delete()["catch"](function(e){ toast("Erreur de suppression : "+e.message, true); });
 }
+var AUDIT_ACTION_LABELS = {
+  create: "Création",
+  update: "Modification",
+  status_change: "Changement de statut",
+  delete: "Suppression",
+  archive_restore: "Restauration d'archive",
+  delete_all: "Suppression globale"
+};
+function logAudit(action, anomaly, detail){
+  if(!S.currentAuthor) return;
+  db.collection("audit_log").add({
+    ts: nowISOTime(),
+    author: S.currentAuthor,
+    action: action,
+    anomalyId: anomaly ? (anomaly.id||"") : "",
+    outil: anomaly ? (anomaly.outil||"") : "",
+    site: anomaly ? (anomaly.site||"") : "",
+    detail: detail||""
+  })["catch"](function(e){ console.error("Erreur journal d'audit :", e); });
+}
 function pushNotification(a){
   var nid = uid();
   db.collection("notifications").doc(nid).set({
@@ -931,12 +955,15 @@ function load(){
     S.archives = arr;
     render();
   }, function(e){});
+  db.collection("audit_log").orderBy("ts","desc").limit(500).onSnapshot(function(snap){
+    var arr = [];
+    snap.forEach(function(doc){ arr.push(doc.data()); });
+    S.auditLog = arr;
+    render();
+  }, function(e){});
   db.collection("anomalies").limit(1).get().then(function(snap){
     if(snap.empty) seedFromSource();
   });
-}
-function save(){
-  try{ localStorage.setItem(AUTHOR_KEY, S.currentAuthor||""); }catch(e){}
 }
 function loadTheme(){
   var t = "auto";
@@ -1406,7 +1433,7 @@ function pageContent(){
   if(S.page==="mytickets") return renderMyTickets();
   if(S.page==="consult") return renderConsult();
   if(S.page==="login") return renderLogin();
-  if(S.page==="admin") return S.authed ? renderAdmin() : renderLogin();
+  if(S.page==="admin") return S.authed ? (S.pendingAuthorGate ? renderAuthorGate() : renderAdmin()) : renderLogin();
   return renderHome();
 }
 var _lastRenderKey = null;
@@ -1807,8 +1834,18 @@ function renderLogin(){
 }
 
 /* ============================= ADMINISTRATION ============================= */
+function renderAuthorGate(){
+  return '<div class="narrow section center">'+
+    "<h2>Qui êtes-vous ?</h2>"+
+    '<p class="mut" style="margin-top:6px">Ce nom sera associé à vos actions dans l\'historique administrateur.</p>'+
+    '<div style="max-width:280px;margin:22px auto 0">'+
+      '<input class="inp" id="author-gate-input" type="text" placeholder="Prénom Nom" style="text-align:center" value="'+esc(S.authorGateInput)+'" autofocus data-f="authorGateInput">'+
+      '<button class="btn bp" data-a="confirm-author" style="width:100%;justify-content:center;margin-top:14px">Continuer</button>'+
+    "</div>"+
+  "</div>";
+}
 function renderAdmin(){
-  var tabs = [["overview","Vue d'ensemble"],["liste","Anomalies"],["notifications","Notifications"+(S.notifications.length?" ("+S.notifications.length+")":"")],["kanban","Kanban"],["saisie","Saisie manuelle"],["rapport","Rapport"],["reglages","Réglages"]];
+  var tabs = [["overview","Vue d'ensemble"],["liste","Anomalies"],["notifications","Notifications"+(S.notifications.length?" ("+S.notifications.length+")":"")],["kanban","Kanban"],["saisie","Saisie manuelle"],["rapport","Rapport"],["historique","Historique"],["reglages","Réglages"]];
   var content = "";
   if(S.adminTab==="overview") content = adminOverview();
   else if(S.adminTab==="liste") content = adminListe();
@@ -1816,12 +1853,13 @@ function renderAdmin(){
   else if(S.adminTab==="kanban") content = adminKanban();
   else if(S.adminTab==="saisie") content = adminSaisie();
   else if(S.adminTab==="rapport") content = adminRapport();
+  else if(S.adminTab==="historique") content = adminHistorique();
   else if(S.adminTab==="reglages") content = adminReglages();
   return '<div class="wrap section">'+
     '<div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px" class="noprint">'+
       '<h1 style="font-size:24px">Administration</h1>'+
       '<div style="display:flex;align-items:center;gap:8px">'+
-        '<input class="inp" style="width:170px;padding:7px 10px;font-size:12.5px" type="text" placeholder="Ton nom (historique)" data-f="currentAuthor" value="'+esc(S.currentAuthor)+'">'+
+        '<span class="small mut">Connecté en tant que <b style="color:var(--ink)">'+esc(S.currentAuthor)+'</b></span>'+
         '<button class="btn bd" data-a="logout">Se déconnecter</button>'+
       "</div>"+
     "</div>"+
@@ -1991,6 +2029,7 @@ function moveAnomalyToStatut(id, newStatut){
   after.historique = (before.historique||[]).concat([{ts: nowISOTime(), auteur: S.currentAuthor||"Administration", texte: diffs.join(" · ")+" (glisser-déposer)"}]);
   S.anomalies[idx] = after;
   saveAnomaly(after);
+  logAudit("status_change", after, diffs.join(" · ")+" (glisser-déposer)");
   toast("Déplacée vers « "+newStatut+" ».");
   var el = document.getElementById("admin-kanban-results");
   if(el) el.innerHTML = kanbanHTML(S.anomalies, true);
@@ -2080,9 +2119,59 @@ function adminSaisie(){
     '<div class="btnrow"><button class="btn bp" data-a="submit-saisie">Ajouter l’anomalie</button></div>'+
   "</div>";
 }
+function filteredAuditLog(){
+  var f = S.auditFilters;
+  return S.auditLog.filter(function(e){
+    if(f.author!=="all" && e.author!==f.author) return false;
+    if(f.outil!=="all" && e.outil!==f.outil) return false;
+    if(f.period!=="all"){
+      var age = daysSince(e.ts.slice(0,10));
+      if(age===null || age>parseInt(f.period,10)) return false;
+    }
+    return true;
+  });
+}
+function adminHistorique(){
+  var authors = [];
+  S.auditLog.forEach(function(e){ if(authors.indexOf(e.author)===-1) authors.push(e.author); });
+  authors.sort();
+  var filterBar = '<div class="btnrow noprint" style="margin-bottom:16px">'+
+    '<select class="inp" style="width:auto" data-f="auditFilters.author">'+
+      ["all"].concat(authors).map(function(v){ return opt(v, v==="all"?"Tous les admins":v, S.auditFilters.author); }).join("")+
+    "</select>"+
+    '<select class="inp" style="width:auto" data-f="auditFilters.outil">'+
+      ["all"].concat(S.settings.outils).map(function(v){ return opt(v, v==="all"?"Tous les outils":v, S.auditFilters.outil); }).join("")+
+    "</select>"+
+    '<select class="inp" style="width:auto" data-f="auditFilters.period">'+
+      Object.keys(KIOSK_PERIODS).map(function(v){ return opt(v, KIOSK_PERIODS[v], S.auditFilters.period); }).join("")+
+    "</select>"+
+  "</div>";
+  var list = filteredAuditLog();
+  if(!list.length) return filterBar+'<div class="tblwrap"><div class="empty">Aucune entrée ne correspond à ces filtres.</div></div>';
+  var rows = list.map(function(e){
+    return '<tr class="row">'+
+      "<td>"+esc(fmtDateTime(e.ts))+"</td>"+
+      "<td>"+esc(e.author)+"</td>"+
+      "<td>"+esc(AUDIT_ACTION_LABELS[e.action]||e.action)+"</td>"+
+      "<td>"+(e.outil?esc(e.outil)+(e.site?" · "+esc(e.site):""):"–")+"</td>"+
+      '<td class="desc">'+esc(e.detail||"–")+"</td>"+
+    "</tr>";
+  }).join("");
+  return filterBar+
+    '<div class="tblwrap"><table class="tbl"><thead><tr><th>Date</th><th>Admin</th><th>Action</th><th>Outil / Site</th><th>Détail</th></tr></thead><tbody>'+rows+"</tbody></table></div>"+
+    '<p class="small mut" style="margin-top:12px">'+list.length+" entrée(s) affichée(s) sur "+S.auditLog.length+".</p>";
+}
 function adminReglages(){
   var f = S.forms.settings;
-  return '<div class="grid2">'+
+  return '<div class="card pad" style="margin-bottom:18px;max-width:420px">'+
+    "<h3>Identité</h3>"+
+    '<p class="mut small" style="margin:8px 0 14px">Nom associé à vos actions dans l\'historique administrateur.</p>'+
+    '<div class="btnrow" style="align-items:center">'+
+      '<span style="font-weight:700">'+esc(S.currentAuthor)+"</span>"+
+      '<button class="btn bsm bd" data-a="edit-author">Modifier</button>'+
+    "</div>"+
+  "</div>"+
+  '<div class="grid2">'+
     '<div class="card pad">'+
       "<h3>Liste des outils</h3>"+
       '<div class="list-editor">'+ S.settings.outils.map(function(o){ return '<span class="list-item">'+esc(o)+'<button data-a="remove-outil" data-id="'+esc(o)+'">×</button></span>'; }).join("") +"</div>"+
@@ -2803,11 +2892,28 @@ function handleAction(a, v, id){
       if(!S.pinInput){ S.pinErr=true; render(); return; }
       verifyPinRemote(S.pinInput).then(function(ok){
         if(ok){
-          pinResetFails(); S.authed=true; S.page="admin"; S.adminTab="overview"; S.pinInput=""; S.pinErr=false; localStorage.setItem("adminAuthed", "1"); render(); toast("Connecté.");
+          pinResetFails(); S.authed=true; S.page="admin"; S.adminTab="overview"; S.pinInput=""; S.pinErr=false; localStorage.setItem("adminAuthed", "1");
+          if(!S.currentAuthor){ S.pendingAuthorGate = true; }
+          render(); toast("Connecté.");
           if(localStorage.getItem("fcmAdminToken")){ setTimeout(ensureFcmMessaging, 500); }
         }
         else { pinRegisterFail(); S.pinErr=true; S.pinInput=""; render(); }
       })["catch"](function(e){ toast("Erreur de connexion : "+e.message, true); });
+      break;
+    case "confirm-author": {
+      var nm = (S.authorGateInput||"").trim();
+      if(!nm){ toast("Merci d'indiquer votre nom.", true); return; }
+      S.currentAuthor = nm;
+      try{ localStorage.setItem(AUTHOR_KEY, nm); }catch(e){}
+      S.pendingAuthorGate = false;
+      S.authorGateInput = "";
+      render();
+      break;
+    }
+    case "edit-author":
+      S.authorGateInput = S.currentAuthor||"";
+      S.pendingAuthorGate = true;
+      render();
       break;
     case "logout":
       auth.signOut();
@@ -2939,6 +3045,7 @@ function handleAction(a, v, id){
         var merged = Object.assign({}, before, S.forms.edit);
         if(diffs.length){
           merged.historique = (before.historique||[]).concat([{ts: nowISOTime(), auteur: S.currentAuthor||"Administration", texte: diffs.join(" · ")}]);
+          logAudit(before.statut!==merged.statut ? "status_change" : "update", merged, diffs.join(" · "));
         }
         S.anomalies[idx] = merged;
         saveAnomaly(merged);
@@ -2949,8 +3056,11 @@ function handleAction(a, v, id){
     }
     case "delete":
       if(confirm("Supprimer définitivement cette anomalie ?")){
+        var toDelete = S.anomalies.filter(function(x){ return x.id===id; })[0];
         S.anomalies = S.anomalies.filter(function(x){ return x.id!==id; });
-        deleteAnomalyRemote(id); toast("Anomalie supprimée."); render();
+        deleteAnomalyRemote(id);
+        logAudit("delete", toDelete, toDelete ? ("Suppression : "+toDelete.outil+" · "+truncate(toDelete.descriptif,60)) : "");
+        toast("Anomalie supprimée."); render();
       }
       break;
     case "submit-saisie": {
@@ -2962,6 +3072,7 @@ function handleAction(a, v, id){
       S.anomalies.unshift(obj2);
       saveAnomaly(obj2);
       pushNotification(obj2);
+      logAudit("create", obj2, "Créée via saisie manuelle");
       resetSaisieForm();
       toast("Anomalie ajoutée.");
       render();
@@ -2996,14 +3107,21 @@ function handleAction(a, v, id){
     }
     case "restore-archive":
       if(confirm("Restaurer cette archive ? Les données actuelles seront remplacées pour tout le monde.")){
-        restoreFromArchive(id).then(function(){ toast("Archive restaurée."); })["catch"](function(e){ toast("Erreur : "+e.message, true); });
+        var archToRestore = S.archives.filter(function(a){ return a._id===id; })[0];
+        restoreFromArchive(id).then(function(){
+          toast("Archive restaurée.");
+          logAudit("archive_restore", null, "Restauration de l'archive du "+(archToRestore?fmtDateTime(archToRestore.archivedAt):"")+" ("+(archToRestore?(archToRestore.anomalies||[]).length:0)+" anomalies)");
+        })["catch"](function(e){ toast("Erreur : "+e.message, true); });
       }
       break;
     case "clear-all": {
       var confirmWord = prompt("Cette action supprime TOUTES les anomalies partagées, pour tous les sites, sans retour possible au-delà de ta dernière sauvegarde.\n\nTape VIDER en majuscules pour confirmer :");
       if(confirmWord===null) break;
       if(confirmWord==="VIDER"){
-        S.anomalies=[]; clearAllRemote(); toast("Toutes les anomalies ont été supprimées."); render();
+        var deletedCount = S.anomalies.length;
+        S.anomalies=[]; clearAllRemote();
+        logAudit("delete_all", null, "Suppression de toutes les anomalies ("+deletedCount+")");
+        toast("Toutes les anomalies ont été supprimées."); render();
       } else {
         toast("Confirmation invalide : rien n’a été supprimé.", true);
       }
@@ -3072,11 +3190,11 @@ function handleAction(a, v, id){
     if(!t.dataset || !t.dataset.f) return;
     var val = t.type==="checkbox" ? t.checked : t.value;
     setDeep(t.dataset.f, val);
-    if(t.dataset.f==="currentAuthor"){ save(); return; }
     if(t.dataset.refresh){ refreshResults(); } else { render(); }
   });
   app.addEventListener("keydown", function(e){
     if(e.key==="Enter" && e.target && e.target.id==="pin-input"){ handleAction("login"); }
+    if(e.key==="Enter" && e.target && e.target.id==="author-gate-input"){ handleAction("confirm-author"); }
   });
   app.addEventListener("dragstart", function(e){
     var card = e.target.closest && e.target.closest(".kcard[draggable=true]");

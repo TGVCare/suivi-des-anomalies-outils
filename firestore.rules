@@ -70,6 +70,16 @@ service cloud.firestore {
       allow read, write: if isAdmin();
     }
 
+    // ---- audit log: who did what, when. Admin-only read (internal accountability
+    // trail, not public data) and append-only (no update/delete) so it stays a
+    // reliable record independent of the anomalies' own lifecycle -- an anomaly
+    // being deleted must not erase the fact that it was deleted.
+    match /audit_log/{id} {
+      allow read: if isAdmin();
+      allow create: if isAdmin() && isValidAuditEntry(request.resource.data);
+      allow update, delete: if false;
+    }
+
     // ---- deny everything else by default
     match /{document=**} {
       allow read, write: if false;
@@ -90,6 +100,17 @@ service cloud.firestore {
       && data.outils is list
       && data.statuts is list
       && (!('kioskScenarios' in data) || data.kioskScenarios is list);
+  }
+
+  function isValidAuditEntry(data) {
+    return data.keys().hasOnly(['ts', 'author', 'action', 'anomalyId', 'outil', 'site', 'detail'])
+      && data.ts is string
+      && data.author is string && data.author.size() > 0
+      && data.action is string
+      && data.anomalyId is string
+      && data.outil is string
+      && data.site is string
+      && data.detail is string;
   }
 
   function isValidAnomaly(data) {
