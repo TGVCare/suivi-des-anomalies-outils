@@ -994,7 +994,8 @@ function barListHTML(groups, max, field){
 var HIST_FIELDS = [
   ["site","Site"],["outil","Outil"],["descriptif","Descriptif"],["severite","Sévérité"],["priorite","Priorité"],
   ["statut","Statut"],["pilote","Pilote"],["correctif","Correctif"],["contournement","Contournement"],
-  ["echeance","Échéance"],["dateResolution","Date de résolution"],["mep","MEP"],["commentaire","Commentaire"]
+  ["datePriseEnCompte","Date de prise en compte"],["echeance","Échéance"],["dateMep","Date de MEP"],
+  ["dateResolution","Date de résolution"],["mep","MEP"],["commentaire","Commentaire"]
 ];
 function diffSummary(before, after){
   var lines = [];
@@ -1002,7 +1003,7 @@ function diffSummary(before, after){
     var k=f[0], label=f[1];
     var a = before[k], b = after[k];
     if(k==="mep"){ a = a?"Oui":"Non"; b = b?"Oui":"Non"; }
-    else if(k==="echeance" || k==="dateResolution"){ a = fmtDate(a); b = fmtDate(b); }
+    else if(k==="echeance" || k==="dateResolution" || k==="datePriseEnCompte" || k==="dateMep"){ a = fmtDate(a); b = fmtDate(b); }
     else { a = a||"–"; b = b||"–"; }
     if(String(a)!==String(b)) lines.push(label+" : "+a+" → "+b);
   });
@@ -1732,7 +1733,9 @@ function anomalyDetailHTML(a){
     detailField("N° Jira", a.jira)+
     detailField("Correctif prévu / en cours", a.correctif)+
     detailField("Contournement terrain", a.contournement)+
+    detailField("Date de prise en compte", fmtDate(a.datePriseEnCompte))+
     detailField("Échéance", fmtDate(a.echeance))+
+    detailField("Date de MEP", fmtDate(a.dateMep))+
     detailField("Date de résolution", fmtDate(a.dateResolution))+
     detailField("Commentaire", a.commentaire)+
   "</div>"+stepperHTML(a)+historiqueHTML(a);
@@ -2027,6 +2030,10 @@ function adminEditForm(){
       field_select("Statut","forms.edit.statut", f.statut, S.settings.statuts, false)+
       field_text("Pilote","forms.edit.pilote", f.pilote)+
     "</div>"+
+    '<div class="grid2">'+
+      field_date("Date de prise en compte","forms.edit.datePriseEnCompte", f.datePriseEnCompte)+
+      field_date("Date de MEP","forms.edit.dateMep", f.dateMep)+
+    "</div>"+
     '<div class="field"><label>Correctif prévu / en cours</label><textarea class="inp" data-f="forms.edit.correctif">'+esc(f.correctif)+"</textarea></div>"+
     '<div class="field"><label>Contournement terrain</label><textarea class="inp" data-f="forms.edit.contournement">'+esc(f.contournement)+"</textarea></div>"+
     '<div class="grid3">'+
@@ -2041,7 +2048,7 @@ function adminEditForm(){
   "</div>";
 }
 function resetSaisieForm(){
-  S.forms.saisie = {_init:true, dateDeclaration: todayISO(), site:"", outil:"", descriptif:"", declarant:"", ticket:"", jira:"", severite:"", priorite:"", statut:"À qualifier", pilote:"", echeance:"", correctif:"", contournement:"", commentaire:""};
+  S.forms.saisie = {_init:true, dateDeclaration: todayISO(), site:"", outil:"", descriptif:"", declarant:"", ticket:"", jira:"", severite:"", priorite:"", statut:"À qualifier", pilote:"", echeance:"", datePriseEnCompte:"", dateMep:"", correctif:"", contournement:"", commentaire:""};
 }
 function adminSaisie(){
   if(!S.forms.saisie || !S.forms.saisie._init) resetSaisieForm();
@@ -2067,6 +2074,10 @@ function adminSaisie(){
     '<div class="grid2">'+
       field_text("Pilote","forms.saisie.pilote", f.pilote)+
       field_date("Échéance","forms.saisie.echeance", f.echeance)+
+    "</div>"+
+    '<div class="grid2">'+
+      field_date("Date de prise en compte","forms.saisie.datePriseEnCompte", f.datePriseEnCompte)+
+      field_date("Date de MEP","forms.saisie.dateMep", f.dateMep)+
     "</div>"+
     '<div class="field"><label>Correctif prévu / en cours</label><textarea class="inp" data-f="forms.saisie.correctif">'+esc(f.correctif)+"</textarea></div>"+
     '<div class="field"><label>Contournement terrain</label><textarea class="inp" data-f="forms.saisie.contournement">'+esc(f.contournement)+"</textarea></div>"+

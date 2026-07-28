@@ -123,6 +123,8 @@ service cloud.firestore {
       && data.commentaire is string
       && (!('notifyToken' in data) || data.notifyToken is string)
       && (!('cp' in data) || data.cp is string)
-      && (!('historique' in data) || data.historique is list);
+      && (!('historique' in data) || data.historique is list)
+      && (!('datePriseEnCompte' in data) || data.datePriseEnCompte is string)
+      && (!('dateMep' in data) || data.dateMep is string);
   }
 }
