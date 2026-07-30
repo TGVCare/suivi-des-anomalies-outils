@@ -410,6 +410,12 @@ var OUTILS_DEFAULT = ["SOLAR","AVD","WL","ONICS","CLARC","OUIFIT G30+","OUIFIT C
 var STATUTS_DEFAULT = ["À qualifier","En cadrage","Analyse SI","Attente info","En attente livraison correctif","Test recette validé","Résolu","Fermé","Surveillance","Pas une anomalie"];
 var IMPACTS = ["1 téléconseiller","Un site","Plusieurs sites / UO"];
 var STATUTS_OUVERTS = ["Résolu","Fermé","Pas une anomalie"]; // = NON "ouverts"
+var SIGNALEMENT_ETAPES = [
+  "Contactez le support concerné (coordonnées ci-dessous) pour signaler l’anomalie.",
+  "Notez le n° de ticket qui vous sera communiqué en retour.",
+  "Revenez sur cette page pour l’importer dans le suivi UO Sud-Est."
+];
+var SIGNALEMENT_ETAPES_NOTE = "Ce formulaire sert à importer un ticket déjà déclaré — pas à signaler une anomalie pour la première fois.";
 var SIGNALEMENT_PREALABLE = [
   "Rapproche-toi de ton manager pour confirmer les gestes métier.",
   "Assure-toi d’avoir fait une déconnexion/reconnexion de l’application concernée et vidé le cache du navigateur."
@@ -1575,9 +1581,16 @@ function signalementAideHTML(){
     "</button>"+
     (open ? (
       '<div style="margin-top:16px">'+
+        '<div class="banner" style="margin-bottom:16px">'+
+          '<div style="font-weight:800;margin-bottom:8px">Marche à suivre</div>'+
+          '<ol class="info-list" style="margin-bottom:8px">'+SIGNALEMENT_ETAPES.map(function(t){ return "<li>"+esc(t)+"</li>"; }).join("")+"</ol>"+
+          "<div>"+esc(SIGNALEMENT_ETAPES_NOTE)+"</div>"+
+        "</div>"+
         '<div class="banner warn" style="margin-bottom:16px">'+SIGNALEMENT_PREALABLE.map(function(t){ return "• "+esc(t); }).join("<br>")+"</div>"+
+        '<div class="mut small" style="font-weight:700;margin:14px 0 6px">Éléments à réunir avant d’appeler</div>'+
+        '<ul class="info-list">'+SIGNALEMENT_ELEMENTS.map(function(t){ return "<li>"+esc(t)+"</li>"; }).join("")+"</ul>"+
         SIGNALEMENT_CONTACTS.map(function(c){
-          return '<div class="card pad" style="margin-bottom:12px;background:var(--grey-bg)">'+
+          return '<div class="card pad" style="margin-bottom:12px;margin-top:14px;background:var(--grey-bg)">'+
             '<div style="font-weight:800;margin-bottom:6px">'+esc(c.systeme)+"</div>"+
             '<div class="small" style="line-height:1.8">'+
               "<b>Support :</b> "+esc(c.support)+"<br>"+
@@ -1588,8 +1601,6 @@ function signalementAideHTML(){
             "</div>"+
           "</div>";
         }).join("")+
-        '<div class="mut small" style="font-weight:700;margin:14px 0 6px">Éléments à réunir avant d’appeler</div>'+
-        '<ul class="info-list">'+SIGNALEMENT_ELEMENTS.map(function(t){ return "<li>"+esc(t)+"</li>"; }).join("")+"</ul>"+
         '<p class="small mut" style="margin-top:12px">'+esc(SIGNALEMENT_NOTE)+"</p>"+
       "</div>"
     ) : "")+
