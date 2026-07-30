@@ -198,6 +198,12 @@ tr.row-overdue{background:var(--p1-bg)}
 .racc.open .racc-body{max-height:2000px;opacity:1;overflow:visible;transition:max-height .3s ease, opacity .25s ease, overflow 0s .3s}
 .racc-body-inner{padding:18px 16px}
 
+/* ---- sortable rows (drag and drop) ---- */
+.sortrow{cursor:grab}
+.sortrow.dragging{opacity:.4}
+.sortrow.dragover{outline:2px dashed var(--hi);outline-offset:-2px}
+.sortrow-handle{color:var(--mu2);flex-shrink:0;font-size:15px;line-height:1;user-select:none}
+
 /* ---- table ---- */
 .tblwrap{overflow-x:auto;border:1px solid var(--line);border-radius:14px;background:var(--card)}
 table.tbl{width:100%;border-collapse:collapse;font-size:13.5px;min-width:920px}
@@ -638,12 +644,13 @@ function ensureKioskSectionOrder(){
   KIOSK_SECTIONS.forEach(function(s){ if(S.kioskSectionOrder.indexOf(s)===-1) S.kioskSectionOrder.push(s); });
   S.kioskSectionOrder = S.kioskSectionOrder.filter(function(s){ return KIOSK_SECTIONS.indexOf(s)!==-1; });
 }
-function moveKioskSection(sec, dir){
+function reorderKioskSection(sec, targetSec){
   ensureKioskSectionOrder();
   var arr = S.kioskSectionOrder;
-  var i = arr.indexOf(sec), j = i+dir;
-  if(i===-1 || j<0 || j>=arr.length) return;
-  var tmp = arr[i]; arr[i] = arr[j]; arr[j] = tmp;
+  var from = arr.indexOf(sec), to = arr.indexOf(targetSec);
+  if(from===-1 || to===-1 || from===to) return;
+  arr.splice(from, 1);
+  arr.splice(to, 0, sec);
 }
 function activeKioskSections(){
   ensureKioskSectionOrder();
@@ -1816,6 +1823,7 @@ function renderConsult(){
 
 /* ============================= CONNEXION ============================= */
 var pinLockTimer = null;
+var sortDragState = { sec: null };
 function ensurePinLockTimer(){
   if(pinLockTimer) return;
   pinLockTimer = setInterval(function(){
@@ -1936,16 +1944,15 @@ function adminOverview(){
           Object.keys(KIOSK_PERIODS).map(function(v){ return opt(v, KIOSK_PERIODS[v], S.kioskFilters.period); }).join("")+
         "</select>"+
       "</div>"+
-      '<div class="small mut" style="margin-bottom:8px;text-transform:none">Slides (sélection et ordre) :</div>'+
+      '<div class="small mut" style="margin-bottom:8px;text-transform:none">Slides (sélection et ordre — glisser pour réorganiser) :</div>'+
       '<div style="display:flex;flex-direction:column;gap:5px;margin-bottom:14px;max-width:440px">'+
-        S.kioskSectionOrder.map(function(sec,i){
+        S.kioskSectionOrder.map(function(sec){
           var checked = S.kioskSlideSelection[sec]!==false;
-          return '<div style="display:flex;align-items:center;gap:8px;padding:7px 10px;background:var(--bg);border:1px solid var(--line);border-radius:8px">'+
+          return '<div class="sortrow" draggable="true" data-sec="'+sec+'" style="display:flex;align-items:center;gap:8px;padding:7px 10px;background:var(--bg);border:1px solid var(--line);border-radius:8px">'+
+            '<span class="sortrow-handle" title="Glisser pour réordonner">⠿</span>'+
             '<label style="display:flex;align-items:center;gap:8px;flex:1;cursor:pointer;font-size:13px;font-weight:600;color:var(--ink);text-transform:none">'+
               '<input type="checkbox" data-f="kioskSlideSelection.'+sec+'"'+(checked?" checked":"")+"> "+esc(KIOSK_SECTION_LABELS[sec])+
             "</label>"+
-            '<button type="button" class="btn bd bsm" data-a="move-slide-up" data-v="'+sec+'" title="Monter" style="padding:2px 7px"'+(i===0?" disabled":"")+">↑</button>"+
-            '<button type="button" class="btn bd bsm" data-a="move-slide-down" data-v="'+sec+'" title="Descendre" style="padding:2px 7px"'+(i===S.kioskSectionOrder.length-1?" disabled":"")+">↓</button>"+
           "</div>";
         }).join("")+
       "</div>"+
@@ -2974,14 +2981,6 @@ function handleAction(a, v, id){
       S.reglagesOpen[v] = !S.reglagesOpen[v];
       render();
       break;
-    case "move-slide-up":
-      moveKioskSection(v, -1);
-      render();
-      break;
-    case "move-slide-down":
-      moveKioskSection(v, 1);
-      render();
-      break;
     case "toggle-report-filter": {
       var arr = (S.reportFilters[v] || []).slice();
       var idx = arr.indexOf(id);
@@ -3175,6 +3174,36 @@ function handleAction(a, v, id){
   app.addEventListener("keydown", function(e){
     if(e.key==="Enter" && e.target && e.target.id==="pin-input"){ handleAction("login"); }
     if(e.key==="Enter" && e.target && e.target.id==="author-gate-input"){ handleAction("confirm-author"); }
+  });
+  app.addEventListener("dragstart", function(e){
+    var row = e.target.closest && e.target.closest(".sortrow[draggable=true]");
+    if(!row) return;
+    sortDragState.sec = row.dataset.sec;
+    row.classList.add("dragging");
+    if(e.dataTransfer){ e.dataTransfer.effectAllowed = "move"; try{ e.dataTransfer.setData("text/plain", row.dataset.sec); }catch(e2){} }
+  });
+  app.addEventListener("dragend", function(e){
+    var row = e.target.closest && e.target.closest(".sortrow");
+    if(row) row.classList.remove("dragging");
+  });
+  app.addEventListener("dragover", function(e){
+    var row = e.target.closest && e.target.closest(".sortrow");
+    if(!row || !sortDragState.sec) return;
+    e.preventDefault();
+    row.classList.add("dragover");
+  });
+  app.addEventListener("dragleave", function(e){
+    var row = e.target.closest && e.target.closest(".sortrow");
+    if(row) row.classList.remove("dragover");
+  });
+  app.addEventListener("drop", function(e){
+    var row = e.target.closest && e.target.closest(".sortrow");
+    if(!row || !sortDragState.sec) return;
+    e.preventDefault();
+    row.classList.remove("dragover");
+    reorderKioskSection(sortDragState.sec, row.dataset.sec);
+    sortDragState.sec = null;
+    render();
   });
   document.addEventListener("keydown", function(e){
     if(S.page!=="kiosk") return;
