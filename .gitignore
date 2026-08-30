@@ -17,3 +17,4 @@ node_modules/
 *.jpg
 *.jpeg
 !logo_tgvinoui.png
+!logo_tgvinoui_hero.png
