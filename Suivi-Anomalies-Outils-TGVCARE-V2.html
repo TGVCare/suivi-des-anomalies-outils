@@ -359,6 +359,9 @@ table.tbl td.desc{max-width:320px}
 .kiosk .kiosk-eyebrow{font-size:13px;font-weight:700;letter-spacing:.09em;text-transform:uppercase;color:#C9A2EF;text-align:center;margin-bottom:10px}
 .kiosk h2{font-size:38px;font-weight:800;color:#fff;margin-bottom:8px;text-align:center;letter-spacing:-.01em}
 .kiosk .kiosk-date{font-size:13px;color:rgba(255,255,255,.5);text-align:center;margin-bottom:28px}
+.kiosk-conclusion{position:relative;overflow:hidden;border-radius:16px}
+.kiosk-conclusion-logo{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);height:80%;max-height:520px;width:auto;opacity:.07;filter:grayscale(1) brightness(3);pointer-events:none}
+.kiosk-conclusion-text{position:relative;z-index:1;text-align:left;white-space:pre-wrap;padding:40px 44px;font-weight:500;color:#fff}
 .kiosk .kiosk-kpis{display:flex;gap:56px;flex-wrap:wrap;justify-content:center}
 .kiosk .kiosk-kpis .n{font-size:118px;font-weight:800;line-height:1;font-variant-numeric:tabular-nums;text-shadow:0 0 60px currentColor}
 .kiosk .kiosk-kpis .l{font-size:16px;opacity:.72;margin-top:14px;text-align:center;font-weight:500}
@@ -2588,6 +2591,13 @@ function refreshResults(){
 }
 
 /* ============================= ACTIONS ============================= */
+function conclusionTypography(len){
+  if(len<150) return {size:26, lh:1.6};
+  if(len<350) return {size:21, lh:1.65};
+  if(len<650) return {size:18, lh:1.65};
+  if(len<1100) return {size:16, lh:1.6};
+  return {size:14, lh:1.55};
+}
 function kioskDeltaHTML(cur, prev, polarity){
   var diff = cur-prev;
   var arrow = diff>0 ? "▲" : diff<0 ? "▼" : "＝";
@@ -2746,10 +2756,15 @@ function kioskRender(){
         : '<p class="small mut" style="opacity:.75">Aucune mise en production en attente.</p>')+
     "</div>";
   } else if(section==="conclusion"){
-    body = '<div class="kiosk-body" style="max-width:760px;margin:0 auto">'+
+    var ctxt = S.kioskConclusionText||"";
+    var typo = conclusionTypography(ctxt.length);
+    body = '<div class="kiosk-body" style="max-width:820px;margin:0 auto">'+
       "<h3 "+SUB+">Conclusion"+titleSuffix+"</h3>"+
-      '<div style="text-align:left;font-size:16px;line-height:1.7;background:rgba(255,255,255,.06);border-radius:12px;padding:24px 28px;white-space:pre-wrap">'+
-        (S.kioskConclusionText ? esc(S.kioskConclusionText) : '<span style="opacity:.6">Aucun texte — ajoutez-en un dans « Configurer un scénario ».</span>')+
+      '<div class="kiosk-conclusion">'+
+        HERO_LOGO_IMG.replace('class="hero-logo"', 'class="kiosk-conclusion-logo"')+
+        '<div class="kiosk-conclusion-text" style="font-size:'+typo.size+'px;line-height:'+typo.lh+'">'+
+          (ctxt ? esc(ctxt) : '<span style="opacity:.6;font-weight:400">Aucun texte — ajoutez-en un dans « Configurer un scénario ».</span>')+
+        "</div>"+
       "</div>"+
     "</div>";
   } else if(section==="donut"){
