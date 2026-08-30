@@ -584,6 +584,7 @@ var S = {
   kioskSectionOrder: null,
   activeScenarioName: null,
   kioskScenarioName: "",
+  kioskConclusionText: "",
   reportFilters: { site:[], outil:[], severite:[], priorite:[], statut:[] },
   openReportFilter: null,
   reportFiltersOpen: false,
@@ -634,8 +635,9 @@ function sortArrow(field){
 }
 
 var THEME_KEY = "tgvcare_theme_v1";
-var KIOSK_SECTIONS = ["centralisation","outils","priorite","visibilite","anciennete","indicateurs","mep","donut","trend"];
+var KIOSK_SECTIONS = ["centralisation","outils","priorite","visibilite","anciennete","indicateurs","mep","donut","trend","conclusion"];
 var KIOSK_SECTION_LABELS = {
+  conclusion: "Conclusion (texte libre)",
   centralisation: "Par site",
   outils: "Par outil",
   priorite: "Par priorité",
@@ -1979,6 +1981,10 @@ function adminOverview(){
           "</div>";
         }).join("")+
       "</div>"+
+      '<div class="field" style="margin-bottom:14px">'+
+        "<label>Texte de la slide « Conclusion »</label>"+
+        '<textarea class="inp" style="min-height:140px" placeholder="Texte affiché sur la slide Conclusion (sauts de ligne conservés)…" data-f="kioskConclusionText">'+esc(S.kioskConclusionText)+"</textarea>"+
+      "</div>"+
       '<div class="btnrow" style="align-items:center">'+
         '<input class="inp" type="text" style="width:220px" placeholder="Nom du scénario" data-f="kioskScenarioName" value="'+esc(S.kioskScenarioName)+'">'+
         '<button class="btn bsm" data-a="save-scenario">'+ICON_SAVE+' Enregistrer comme scénario</button>'+
@@ -2739,6 +2745,13 @@ function kioskRender(){
         '<div style="max-width:640px;margin:10px auto 0;display:flex;flex-direction:column;gap:8px">'+mepRows+"</div>"
         : '<p class="small mut" style="opacity:.75">Aucune mise en production en attente.</p>')+
     "</div>";
+  } else if(section==="conclusion"){
+    body = '<div class="kiosk-body" style="max-width:760px;margin:0 auto">'+
+      "<h3 "+SUB+">Conclusion"+titleSuffix+"</h3>"+
+      '<div style="text-align:left;font-size:16px;line-height:1.7;background:rgba(255,255,255,.06);border-radius:12px;padding:24px 28px;white-space:pre-wrap">'+
+        (S.kioskConclusionText ? esc(S.kioskConclusionText) : '<span style="opacity:.6">Aucun texte — ajoutez-en un dans « Configurer un scénario ».</span>')+
+      "</div>"+
+    "</div>";
   } else if(section==="donut"){
     body = '<div class="kiosk-body" style="text-align:center">'+(titleSuffix?"<h3 "+SUB+" style=\"margin-bottom:14px\">Répartition par statut"+titleSuffix+"</h3>":"")+donutChartHTML(list,k)+"</div>";
   } else if(section==="trend"){
@@ -2847,7 +2860,8 @@ function handleAction(a, v, id){
         id: uid(),
         name: scName,
         filters: Object.assign({}, S.kioskFilters),
-        sections: activeKioskSections()
+        sections: activeKioskSections(),
+        conclusionText: S.kioskConclusionText||""
       });
       saveSettings();
       S.kioskScenarioName = "";
@@ -2862,6 +2876,7 @@ function handleAction(a, v, id){
       S.kioskSlideSelection = {};
       KIOSK_SECTIONS.forEach(function(sec){ S.kioskSlideSelection[sec] = scenario.sections.indexOf(sec)!==-1; });
       S.kioskSectionOrder = scenario.sections.concat(KIOSK_SECTIONS.filter(function(sec){ return scenario.sections.indexOf(sec)===-1; }));
+      S.kioskConclusionText = scenario.conclusionText||"";
       S.activeScenarioName = scenario.name;
       startKiosk();
       break;
