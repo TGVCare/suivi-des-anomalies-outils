@@ -359,9 +359,9 @@ table.tbl td.desc{max-width:320px}
 .kiosk .kiosk-eyebrow{font-size:13px;font-weight:700;letter-spacing:.09em;text-transform:uppercase;color:#C9A2EF;text-align:center;margin-bottom:10px}
 .kiosk h2{font-size:38px;font-weight:800;color:#fff;margin-bottom:8px;text-align:center;letter-spacing:-.01em}
 .kiosk .kiosk-date{font-size:13px;color:rgba(255,255,255,.5);text-align:center;margin-bottom:28px}
-.kiosk-conclusion{position:relative;overflow:hidden;border-radius:16px}
-.kiosk-conclusion-logo{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);height:80%;max-height:520px;width:auto;opacity:.07;filter:grayscale(1) brightness(3);pointer-events:none}
-.kiosk-conclusion-text{position:relative;z-index:1;text-align:left;white-space:pre-wrap;padding:40px 44px;font-weight:500;color:#fff}
+.kiosk-watermark{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:min(85vw,1050px);height:auto;opacity:.05;filter:grayscale(1) brightness(3);pointer-events:none;z-index:0}
+.kiosk>*:not(.kiosk-watermark){position:relative;z-index:1}
+.kiosk-conclusion-text{text-align:left;white-space:pre-wrap;padding:40px 44px;font-weight:500;color:#fff;background:rgba(255,255,255,.05);border-radius:16px}
 .kiosk .kiosk-kpis{display:flex;gap:56px;flex-wrap:wrap;justify-content:center}
 .kiosk .kiosk-kpis .n{font-size:118px;font-weight:800;line-height:1;font-variant-numeric:tabular-nums;text-shadow:0 0 60px currentColor}
 .kiosk .kiosk-kpis .l{font-size:16px;opacity:.72;margin-top:14px;text-align:center;font-weight:500}
@@ -2760,11 +2760,8 @@ function kioskRender(){
     var typo = conclusionTypography(ctxt.length);
     body = '<div class="kiosk-body" style="max-width:820px;margin:0 auto">'+
       "<h3 "+SUB+">Conclusion"+titleSuffix+"</h3>"+
-      '<div class="kiosk-conclusion">'+
-        HERO_LOGO_IMG.replace('class="hero-logo"', 'class="kiosk-conclusion-logo"')+
-        '<div class="kiosk-conclusion-text" style="font-size:'+typo.size+'px;line-height:'+typo.lh+'">'+
-          (ctxt ? esc(ctxt) : '<span style="opacity:.6;font-weight:400">Aucun texte — ajoutez-en un dans « Configurer un scénario ».</span>')+
-        "</div>"+
+      '<div class="kiosk-conclusion-text" style="font-size:'+typo.size+'px;line-height:'+typo.lh+'">'+
+        (ctxt ? esc(ctxt) : '<span style="opacity:.6;font-weight:400">Aucun texte — ajoutez-en un dans « Configurer un scénario ».</span>')+
       "</div>"+
     "</div>";
   } else if(section==="donut"){
@@ -2776,6 +2773,7 @@ function kioskRender(){
   if(S.kioskFilters.period!=="all") scopeBits.push(KIOSK_PERIODS[S.kioskFilters.period]);
   var eyebrow = "TGV CARE · UO Sud-Est" + (S.activeScenarioName ? " · "+S.activeScenarioName : (scopeBits.length ? " · "+scopeBits.join(" · ") : ""));
   el.innerHTML = '<div class="kiosk">'+
+    HERO_LOGO_IMG.replace('class="hero-logo"', 'class="kiosk-watermark"')+
     '<div class="kiosk-toolbar"><button data-a="kiosk-export">⬇ Exporter PDF</button><button data-a="kiosk-exit">Quitter ✕</button></div>'+
     '<button class="kiosk-nav kiosk-prev" data-a="kiosk-prev" aria-label="Précédent">‹</button>'+
     '<button class="kiosk-nav kiosk-next" data-a="kiosk-next" aria-label="Suivant">›</button>'+
