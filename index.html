@@ -425,7 +425,7 @@ var SIGNALEMENT_ETAPES = [
   "Notez le n° de ticket qui vous sera communiqué en retour.",
   "Revenez sur cette page pour l’importer dans le suivi UO Sud-Est."
 ];
-var SIGNALEMENT_ETAPES_NOTE = "Ce formulaire sert à importer un ticket déjà déclaré — pas à signaler une anomalie pour la première fois.";
+var SIGNALEMENT_ETAPES_NOTE = "Ce formulaire sert à importer un ticket déjà déclaré, pas à signaler une anomalie pour la première fois.";
 var SIGNALEMENT_PREALABLE = [
   "Rapproche-toi de ton manager pour confirmer les gestes métier.",
   "Assure-toi d’avoir fait une déconnexion/reconnexion de l’application concernée et vidé le cache du navigateur."
@@ -462,7 +462,7 @@ var SIGNALEMENT_ELEMENTS = [
   "Agent sur site ou en télétravail ?",
   "L’anomalie concerne 1 agent ou tous les agents du site ?",
   "Description de l’anomalie : texte du message ou code erreur (si pas de capture)",
-  "Capture d’écran complète (essentiel) — voire photo",
+  "Capture d’écran complète (essentiel), voire photo",
   "N° de ticket si l’anomalie a déjà été signalée"
 ];
 var SIGNALEMENT_NOTE = "Si l’anomalie a déjà été remontée, signale-la à nouveau : la récurrence permet de définir l’urgence et la priorisation du traitement.";
@@ -543,7 +543,7 @@ function ensureFcmMessaging(){
         if(Notification.permission==="granted" && fcmSwRegistration){
           fcmSwRegistration.showNotification(title, {body: body, data: payload.data||{}});
         }
-        toast(body ? (title+" — "+body) : title);
+        toast(body ? (title+" : "+body) : title);
       });
       return messaging;
     });
@@ -1972,7 +1972,7 @@ function adminOverview(){
           Object.keys(KIOSK_PERIODS).map(function(v){ return opt(v, KIOSK_PERIODS[v], S.kioskFilters.period); }).join("")+
         "</select>"+
       "</div>"+
-      '<div class="small mut" style="margin-bottom:8px;text-transform:none">Slides (sélection et ordre — glisser pour réorganiser) :</div>'+
+      '<div class="small mut" style="margin-bottom:8px;text-transform:none">Slides (sélection et ordre, glisser pour réorganiser) :</div>'+
       '<div style="display:flex;flex-direction:column;gap:5px;margin-bottom:14px;max-width:440px">'+
         S.kioskSectionOrder.map(function(sec){
           var checked = S.kioskSlideSelection[sec]!==false;
@@ -2628,7 +2628,7 @@ function kioskPrintReportHTML(){
     "</div>";
   }
   return '<div class="wrap section">'+
-    '<h1 style="font-size:24px">Suivi des anomalies — Point du '+fmtDate(todayISO())+"</h1>"+
+    '<h1 style="font-size:24px">Suivi des anomalies · Point du '+fmtDate(todayISO())+"</h1>"+
     '<p class="mut" style="margin-top:4px">TGV CARE · UO Sud-Est · '+esc(scope)+"</p>"+
     '<div class="grid5" style="margin:18px 0">'+
       kpiTile(k.total,"Anomalies identifiées","")+
@@ -2662,7 +2662,7 @@ function kioskRender(){
   if(S.kioskFilters.statut!=="all") scopeBits0.push(S.kioskFilters.statut);
   if(S.kioskFilters.outil!=="all") scopeBits0.push(S.kioskFilters.outil);
   if(S.kioskFilters.period!=="all") scopeBits0.push(KIOSK_PERIODS[S.kioskFilters.period]);
-  var titleSuffix = S.activeScenarioName ? " — "+esc(S.activeScenarioName) : (scopeBits0.length ? " — "+esc(scopeBits0.join(" · ")) : "");
+  var titleSuffix = S.activeScenarioName ? " · "+esc(S.activeScenarioName) : (scopeBits0.length ? " · "+esc(scopeBits0.join(" · ")) : "");
   if(section==="centralisation"){
     var bySite = groupCount(list, "site");
     body = '<div class="kiosk-body">'+
@@ -2761,7 +2761,7 @@ function kioskRender(){
     body = '<div class="kiosk-body" style="max-width:820px;margin:0 auto">'+
       "<h3 "+SUB+">Conclusion"+titleSuffix+"</h3>"+
       '<div class="kiosk-conclusion-text" style="font-size:'+typo.size+'px;line-height:'+typo.lh+'">'+
-        (ctxt ? esc(ctxt) : '<span style="opacity:.6;font-weight:400">Aucun texte — ajoutez-en un dans « Configurer un scénario ».</span>')+
+        (ctxt ? esc(ctxt) : '<span style="opacity:.6;font-weight:400">Aucun texte : ajoutez-en un dans « Configurer un scénario ».</span>')+
       "</div>"+
     "</div>";
   } else if(section==="donut"){
