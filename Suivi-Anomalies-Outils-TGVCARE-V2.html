@@ -864,12 +864,13 @@ var AUDIT_ACTION_LABELS = {
   update: "Modification",
   status_change: "Changement de statut",
   delete: "Suppression",
+  restore: "Restauration de ticket",
   archive_restore: "Restauration d'archive",
   delete_all: "Suppression globale"
 };
 function logAudit(action, anomaly, detail){
   if(!S.currentAuthor) return;
-  db.collection("audit_log").add({
+  var entry = {
     ts: nowISOTime(),
     author: S.currentAuthor,
     action: action,
@@ -877,7 +878,9 @@ function logAudit(action, anomaly, detail){
     outil: anomaly ? (anomaly.outil||"") : "",
     site: anomaly ? (anomaly.site||"") : "",
     detail: detail||""
-  })["catch"](function(e){ console.error("Erreur journal d'audit :", e); });
+  };
+  if(action==="delete" && anomaly) entry.snapshot = anomaly;
+  db.collection("audit_log").add(entry)["catch"](function(e){ console.error("Erreur journal d'audit :", e); });
 }
 function pushNotification(a){
   var nid = uid();
@@ -2153,17 +2156,26 @@ function adminHistorique(){
   "</div>";
   var list = filteredAuditLog();
   if(!list.length) return filterBar+'<div class="tblwrap"><div class="empty">Aucune entrée ne correspond à ces filtres.</div></div>';
+  var existingIds = {};
+  S.anomalies.forEach(function(a){ existingIds[a.id] = true; });
   var rows = list.map(function(e){
+    var restoreCell = "–";
+    if(e.action==="delete"){
+      if(existingIds[e.anomalyId]) restoreCell = '<span class="small mut">Déjà présente</span>';
+      else if(e.snapshot) restoreCell = '<button class="btn bsm" data-a="restore-deleted" data-id="'+esc(e.anomalyId)+'" data-v="'+esc(e.ts)+'">Restaurer</button>';
+      else restoreCell = '<span class="small mut">Non restaurable</span>';
+    }
     return '<tr class="row">'+
       "<td>"+esc(fmtDateTime(e.ts))+"</td>"+
       "<td>"+esc(e.author)+"</td>"+
       "<td>"+esc(AUDIT_ACTION_LABELS[e.action]||e.action)+"</td>"+
       "<td>"+(e.outil?esc(e.outil)+(e.site?" · "+esc(e.site):""):"–")+"</td>"+
       '<td class="desc">'+esc(e.detail||"–")+"</td>"+
+      "<td>"+restoreCell+"</td>"+
     "</tr>";
   }).join("");
   return filterBar+
-    '<div class="tblwrap"><table class="tbl"><thead><tr><th>Date</th><th>Admin</th><th>Action</th><th>Outil / Site</th><th>Détail</th></tr></thead><tbody>'+rows+"</tbody></table></div>"+
+    '<div class="tblwrap"><table class="tbl"><thead><tr><th>Date</th><th>Admin</th><th>Action</th><th>Outil / Site</th><th>Détail</th><th>Restaurer</th></tr></thead><tbody>'+rows+"</tbody></table></div>"+
     '<p class="small mut" style="margin-top:12px">'+list.length+" entrée(s) affichée(s) sur "+S.auditLog.length+".</p>";
 }
 function reglagesAccordion(key, title, bodyHtml){
@@ -3093,6 +3105,19 @@ function handleAction(a, v, id){
         toast("Anomalie supprimée."); render();
       }
       break;
+    case "restore-deleted": {
+      var delEntry = S.auditLog.filter(function(e){ return e.action==="delete" && e.anomalyId===id && e.ts===v; })[0];
+      if(!delEntry || !delEntry.snapshot){ toast("Impossible de restaurer : aucune donnée sauvegardée pour ce ticket.", true); break; }
+      if(S.anomalies.some(function(a){ return a.id===delEntry.snapshot.id; })){ toast("Un ticket avec cet identifiant existe déjà.", true); break; }
+      if(confirm("Restaurer ce ticket tel qu'il était avant sa suppression ?")){
+        var restored = delEntry.snapshot;
+        S.anomalies.unshift(restored);
+        saveAnomaly(restored);
+        logAudit("restore", restored, "Restauration après suppression : "+restored.outil+" · "+truncate(restored.descriptif,60));
+        toast("Ticket restauré."); render();
+      }
+      break;
+    }
     case "submit-saisie": {
       var fs = S.forms.saisie;
       if(!fs.outil || !fs.descriptif){ toast("Merci de renseigner au moins l’outil et le descriptif.", true); return; }

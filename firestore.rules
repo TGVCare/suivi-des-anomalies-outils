@@ -103,14 +103,15 @@ service cloud.firestore {
   }
 
   function isValidAuditEntry(data) {
-    return data.keys().hasOnly(['ts', 'author', 'action', 'anomalyId', 'outil', 'site', 'detail'])
+    return data.keys().hasOnly(['ts', 'author', 'action', 'anomalyId', 'outil', 'site', 'detail', 'snapshot'])
       && data.ts is string
       && data.author is string && data.author.size() > 0
       && data.action is string
       && data.anomalyId is string
       && data.outil is string
       && data.site is string
-      && data.detail is string;
+      && data.detail is string
+      && (!('snapshot' in data) || data.snapshot is map);
   }
 
   function isValidAnomaly(data) {
