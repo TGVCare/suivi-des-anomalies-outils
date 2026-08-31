@@ -32,7 +32,18 @@ exports.verifyPin = onCall(async (request) => {
 
   if (ok) {
     await attemptsRef.set({ fails: 0, lockUntil: 0 });
-    const token = await admin.auth().createCustomToken("tgvcare-admin", { admin: true });
+    const uid = "tgvcare-admin";
+    try {
+      await admin.auth().setCustomUserClaims(uid, { admin: true });
+    } catch (e) {
+      if (e.code === "auth/user-not-found") {
+        await admin.auth().createUser({ uid });
+        await admin.auth().setCustomUserClaims(uid, { admin: true });
+      } else {
+        throw e;
+      }
+    }
+    const token = await admin.auth().createCustomToken(uid, { admin: true });
     return { ok: true, token };
   }
 
