@@ -910,6 +910,22 @@ function logAudit(action, anomaly, detail){
   if(action==="delete" && anomaly) entry.snapshot = anomaly;
   db.collection("audit_log").add(entry)["catch"](function(e){ console.error("Erreur journal d'audit :", e); });
 }
+function autoChangelogEntry(before, merged){
+  var statutChanged = before.statut !== merged.statut;
+  var mepDone = !before.mep && merged.mep;
+  if(!statutChanged && !mepDone) return;
+  var desc = truncate(merged.descriptif, 90);
+  var titre, description;
+  if(mepDone){
+    titre = merged.outil+" : mise en production";
+    description = desc + (merged.correctif ? " · Correctif : "+truncate(merged.correctif,150) : "");
+  } else {
+    titre = merged.outil+" : "+merged.statut;
+    description = desc;
+  }
+  db.collection("changelog").add({ ts: nowISOTime(), titre: titre, description: description })
+    ["catch"](function(e){ console.error("Erreur journal des nouveautés :", e); });
+}
 function pushNotification(a){
   var nid = uid();
   db.collection("notifications").doc(nid).set({
@@ -1090,6 +1106,7 @@ function cascadeResolveLinkedJira(merged){
     S.anomalies[idx] = after;
     saveAnomaly(after);
     logAudit("status_change", after, "Résolution groupée via "+jira);
+    autoChangelogEntry(x, after);
   });
   toast(linked.length+" anomalie(s) liée(s) mise(s) à jour.");
   render();
@@ -3204,6 +3221,7 @@ function handleAction(a, v, id){
         if(diffs.length){
           merged.historique = (before.historique||[]).concat([{ts: nowISOTime(), auteur: S.currentAuthor||"Administration", texte: diffs.join(" · ")}]);
           logAudit(before.statut!==merged.statut ? "status_change" : "update", merged, diffs.join(" · "));
+          autoChangelogEntry(before, merged);
         }
         S.anomalies[idx] = merged;
         saveAnomaly(merged);
