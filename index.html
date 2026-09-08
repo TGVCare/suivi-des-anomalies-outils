@@ -587,11 +587,14 @@ var S = {
   adminTab: "overview",
   anomalies: [],
   archives: [],
+  changelog: [],
+  showChangelog: false,
   myCpAnomalies: [],
   settings: { outils: OUTILS_DEFAULT.slice(), statuts: STATUTS_DEFAULT.slice(), kioskScenarios: [] },
   forms: {
     declare: {}, saisie: {}, edit: {},
-    settings: { newOutil:"", newStatut:"", currentPin:"", newPin:"", newPin2:"" }
+    settings: { newOutil:"", newStatut:"", currentPin:"", newPin:"", newPin2:"" },
+    changelog: { titre:"", description:"" }
   },
   filters: { q:"", site:"all", outil:"all", statut:"all", priorite:"all" },
   kioskFilters: { site:"all", statut:"all", outil:"all", period:"all" },
@@ -604,7 +607,7 @@ var S = {
   openReportFilter: null,
   reportFiltersOpen: false,
   briefConfigOpen: false,
-  reglagesOpen: { outils:false, statuts:false, pin:false, sauvegarde:false },
+  reglagesOpen: { outils:false, statuts:false, pin:false, sauvegarde:false, changelog:false },
   expanded: {},
   editingId: null,
   declareDone: false,
@@ -806,6 +809,18 @@ function myTicketsUpdateCount(){
   });
   return n;
 }
+var CHANGELOG_SEEN_KEY = "changelogLastSeenTs";
+function getChangelogLastSeen(){
+  try{ return localStorage.getItem(CHANGELOG_SEEN_KEY) || ""; }catch(e){ return ""; }
+}
+function markChangelogSeen(){
+  try{ localStorage.setItem(CHANGELOG_SEEN_KEY, nowISOTime()); }catch(e){}
+}
+function changelogUnreadCount(){
+  var last = getChangelogLastSeen();
+  if(!last) return S.changelog.length;
+  return S.changelog.filter(function(c){ return c.ts > last; }).length;
+}
 function getMyCp(){
   try{ return localStorage.getItem(MY_CP_KEY) || ""; }catch(e){ return ""; }
 }
@@ -982,6 +997,12 @@ function load(){
     var arr = [];
     snap.forEach(function(doc){ arr.push(doc.data()); });
     S.auditLog = arr;
+    render();
+  }, function(e){});
+  db.collection("changelog").orderBy("ts","desc").limit(50).onSnapshot(function(snap){
+    var arr = [];
+    snap.forEach(function(doc){ arr.push(Object.assign({_id:doc.id}, doc.data())); });
+    S.changelog = arr;
     render();
   }, function(e){});
   db.collection("anomalies").limit(1).get().then(function(snap){
@@ -1463,13 +1484,31 @@ function topbar(){
   var myLabel = "Mes tickets" + (myCount ? ' <span class="chip hi" style="padding:1px 7px;font-size:10.5px;margin-left:2px">'+myCount+"</span>" : "");
   var navButtons = navBtn("home","Accueil")+navBtn("declare","Ticket")+navBtn("mytickets",myLabel)+navBtn("consult","Consulter")+
       (S.authed ? navBtn("admin",adminLabel) : '<button data-a="nav" data-v="login">'+adminLabel+"</button>");
+  var clUnread = changelogUnreadCount();
   return '<div class="topbar noprint"><div class="topbar-in">'+
     '<div class="brand" data-a="nav" data-v="home" style="cursor:pointer">'+APP_LOGO_SVG+'<div>Suivi Anomalies Outils<small>TGV CARE · UO Sud-Est</small></div></div>'+
     '<div class="navlinks">'+navButtons+"</div>"+
+    '<div class="changelog-wrap" style="position:relative">'+
+      '<button class="btn bd bsm" data-a="toggle-changelog" title="Nouveautés" style="position:relative">'+bellIconHTML(clUnread)+"</button>"+
+      (S.showChangelog ? changelogPanelHTML() : "")+
+    "</div>"+
     themeSwitchHTML()+
     '<button class="mobile-nav-toggle" data-a="toggle-mobile-nav" aria-label="Menu">'+(S.mobileNavOpen?"✕":"☰")+"</button>"+
   "</div>"+
   (S.mobileNavOpen ? ('<div class="mobile-nav-dropdown">'+navButtons+"</div>") : "")+
+  "</div>";
+}
+function changelogPanelHTML(){
+  var items = S.changelog.slice(0,20);
+  return '<div class="card pad" style="position:absolute;top:calc(100% + 8px);right:0;width:320px;max-width:88vw;max-height:420px;overflow:auto;z-index:60;box-shadow:0 10px 30px rgba(0,0,0,.25)">'+
+    '<div style="font-weight:800;margin-bottom:10px">Nouveautés</div>'+
+    (items.length ? items.map(function(c){
+      return '<div style="padding:9px 0;border-top:1px solid var(--line)">'+
+        '<div style="font-weight:700;font-size:14px">'+esc(c.titre)+"</div>"+
+        '<div class="small mut" style="margin:2px 0 4px">'+esc(fmtDate(c.ts))+"</div>"+
+        (c.description ? '<div class="small">'+esc(c.description)+"</div>" : "")+
+      "</div>";
+    }).join("") : '<div class="small mut">Aucune nouveauté pour le moment.</div>')+
   "</div>";
 }
 function footer(){
@@ -2272,6 +2311,25 @@ function adminReglages(){
       '<div class="btnrow"><input class="inp" style="max-width:220px" type="text" placeholder="Nouveau statut" data-f="forms.settings.newStatut" value="'+esc(f.newStatut)+'"><button class="btn bsm" data-a="add-statut">Ajouter</button></div>'
     )+
   "</div>"+
+  '<div class="grid2" style="margin-bottom:18px">'+
+    reglagesAccordion("changelog", "Journal des nouveautés",
+      '<p class="mut small" style="margin-bottom:14px">Visible par tous les visiteurs (cloche en haut de page), pas seulement les admins.</p>'+
+      '<div class="field"><label>Titre</label><input class="inp" type="text" placeholder="ex. Nouveau logo TGV inOui" data-f="forms.changelog.titre" value="'+esc(S.forms.changelog.titre)+'"></div>'+
+      '<div class="field"><label>Description (optionnel)</label><textarea class="inp" data-f="forms.changelog.description">'+esc(S.forms.changelog.description)+"</textarea></div>"+
+      '<div class="btnrow"><button class="btn bp" data-a="submit-changelog">Publier</button></div>'+
+      (S.changelog && S.changelog.length ? (
+        '<div style="margin-top:16px">'+
+          '<div class="mut small" style="font-weight:700;margin-bottom:8px">Entrées publiées</div>'+
+          S.changelog.map(function(c){
+            return '<div style="display:flex;align-items:flex-start;justify-content:space-between;gap:10px;padding:8px 0;border-bottom:1px solid var(--line)">'+
+              '<span class="small"><b>'+esc(c.titre)+"</b> · "+esc(fmtDate(c.ts))+(c.description?"<br>"+esc(c.description):"")+"</span>"+
+              '<button class="btn bsm br" data-a="delete-changelog" data-id="'+esc(c._id)+'">Suppr.</button>'+
+            "</div>";
+          }).join("")+
+        "</div>"
+      ) : '<p class="mut small">Aucune entrée pour l’instant.</p>')
+    )+
+  "</div>"+
   '<div class="card pad" style="max-width:420px">'+
     '<h3 style="color:var(--p1)">Zone sensible</h3>'+
     '<p class="mut small" style="margin:8px 0 16px">Cette action supprime l’ensemble des données partagées, visibles par tous les sites. Pense à faire une sauvegarde avant.</p>'+
@@ -3052,6 +3110,29 @@ function handleAction(a, v, id){
       S.showInterlocuteurs = !S.showInterlocuteurs;
       render();
       break;
+    case "toggle-changelog":
+      S.showChangelog = !S.showChangelog;
+      if(S.showChangelog) markChangelogSeen();
+      render();
+      break;
+    case "submit-changelog": {
+      var cf = S.forms.changelog;
+      if(!cf.titre || !cf.titre.trim()){ toast("Merci de renseigner un titre.", true); return; }
+      db.collection("changelog").add({
+        ts: nowISOTime(),
+        titre: cf.titre.trim(),
+        description: (cf.description||"").trim()
+      })["catch"](function(e){ toast("Erreur : "+e.message, true); });
+      S.forms.changelog = { titre:"", description:"" };
+      toast("Nouveauté publiée.");
+      render();
+      break;
+    }
+    case "delete-changelog":
+      if(confirm("Supprimer cette entrée du journal des nouveautés ?")){
+        db.collection("changelog").doc(id).delete()["catch"](function(e){ toast("Erreur : "+e.message, true); });
+      }
+      break;
     case "delete-notif":
       deleteNotificationRemote(id);
       break;
@@ -3265,6 +3346,7 @@ function handleAction(a, v, id){
   app.addEventListener("click", function(e){
     var closedDropdown = false;
     if(S.openReportFilter && !e.target.closest(".msel")){ S.openReportFilter = null; closedDropdown = true; }
+    if(S.showChangelog && !e.target.closest(".changelog-wrap")){ S.showChangelog = false; closedDropdown = true; }
     var t = e.target.closest("[data-a]");
     if(t){ handleAction(t.dataset.a, t.dataset.v, t.dataset.id); return; }
     if(closedDropdown) render();
