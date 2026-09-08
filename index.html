@@ -467,15 +467,15 @@ var SIGNALEMENT_ELEMENTS = [
 ];
 var SIGNALEMENT_NOTE = "Si l’anomalie a déjà été remontée, signale-la à nouveau : la récurrence permet de définir l’urgence et la priorisation du traitement.";
 var INTERLOCUTEURS = [
-  { nom:"Philippe AMIOT", role:"SOLAR/AVD", bg:"#8B1E3F", fg:"#fff",
+  { nom:"Philippe AMIOT", role:"SOLAR/AVD", email:"phil.amiot@sncf.fr", bg:"#8B1E3F", fg:"#fff",
     icon:'<path d="M5 19l9-9M14 10l3.3-3.3a1.5 1.5 0 0 0 0-2.1l-.9-.9a1.5 1.5 0 0 0-2.1 0L11 7" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/><path d="M18 4v2M20 6h2M4 14l.7 1.7L6.4 16.4 4.7 17.1 4 18.8 3.3 17.1 1.6 16.4 3.3 15.7 4 14Z" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/>' },
-  { nom:"Etienne CASSIER", role:"Téléphonie", bg:"#9AA0A6", fg:"#fff",
+  { nom:"Etienne CASSIER", role:"Téléphonie", email:"etienne.cassier@sncf.fr", bg:"#9AA0A6", fg:"#fff",
     icon:'<path d="M5 4h3l1.5 4.5L7.5 10a11 11 0 0 0 6.5 6.5l1.5-2L20 16v3a2 2 0 0 1-2 2C10.5 21 3 13.5 3 6a2 2 0 0 1 2-2Z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/>' },
-  { nom:"Sandie COURRIER", role:"Formulaire G30/BD30", bg:"#A9C6EA", fg:"#173A5E",
+  { nom:"Sandie COURRIER", role:"Formulaire G30/BD30", email:"sandie.courrier@sncf.fr", bg:"#A9C6EA", fg:"#173A5E",
     icon:'<circle cx="8" cy="9" r="3.2" stroke="currentColor" stroke-width="1.5"/><path d="M10.3 11.3 19 20M16.5 16.5l2 2M19 14l2 2-2 2" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>' },
-  { nom:"Séverine LAIFAOUI", role:"ONICS", bg:"#F4B8C1", fg:"#8B1E3F",
+  { nom:"Séverine LAIFAOUI", role:"ONICS", email:"severine.laifaoui@sncf.fr", bg:"#F4B8C1", fg:"#8B1E3F",
     icon:'<path d="M12 4a5 5 0 0 0-3 9c.5.4.8 1 .8 1.7V16h4.4v-1.3c0-.7.3-1.3.8-1.7A5 5 0 0 0 12 4Z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/><path d="M10 19h4M10.5 21h3" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>' },
-  { nom:"Sébastien ROGUES", role:"Outils de dépôt", bg:"#173A5E", fg:"#fff",
+  { nom:"Sébastien ROGUES", role:"Outils de dépôt", email:"sebastien.rogues@sncf.fr", bg:"#173A5E", fg:"#fff",
     icon:'<circle cx="12" cy="7" r="2.6" stroke="currentColor" stroke-width="1.5"/><path d="M6 19c0-3.3 2.7-6 6-6s6 2.7 6 6" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>' }
 ];
 var PRIORITE_LABEL = {P1:"P1 · Bloquant",P2:"P2 · Majeur",P3:"P3 · Modéré","":"Non priorisé"};
@@ -1709,6 +1709,7 @@ function interlocuteursHTML(){
             '<div style="width:52px;height:52px;border-radius:50%;background:rgba(255,255,255,.18);border:1.5px solid rgba(255,255,255,.5);display:flex;align-items:center;justify-content:center;margin:0 auto 14px"><svg width="24" height="24" viewBox="0 0 24 24" fill="none">'+p.icon+"</svg></div>"+
             '<div style="font-weight:700">'+esc(p.nom)+"</div>"+
             '<div style="opacity:.9;font-size:13.5px;margin-top:2px">'+esc(p.role)+"</div>"+
+            (p.email ? '<a href="mailto:'+esc(p.email)+'" style="display:inline-block;margin-top:8px;color:inherit;font-size:12.5px;text-decoration:underline;word-break:break-all">'+esc(p.email)+"</a>" : "")+
           "</div>";
         }).join("")+
       "</div>"
