@@ -302,7 +302,7 @@ table.tbl td.desc{max-width:320px}
 .acard.overdue{background:var(--p1-bg)}
 .acard .atop{display:flex;justify-content:space-between;align-items:flex-start;gap:8px;margin-bottom:8px}
 .acard .adesc{font-size:13px;color:var(--ink);margin:8px 0;line-height:1.4;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}
-.acard .afoot{display:flex;justify-content:space-between;align-items:center;gap:8px;margin-top:10px}
+.acard .afoot{display:flex;justify-content:space-between;align-items:center;gap:8px;margin-top:10px}.acard-detail-slot{grid-column:1/-1;margin:2px 0 4px}.acard-detail-slot .card{margin-bottom:0!important;animation:acard-detail-in .15s ease}@keyframes acard-detail-in{from{opacity:0;transform:translateY(-6px)}to{opacity:1;transform:translateY(0)}}
 
 /* ---- avatar pilote ---- */
 .avatar{display:inline-flex;align-items:center;justify-content:center;width:22px;height:22px;border-radius:50%;font-size:9.5px;font-weight:800;color:#fff;flex-shrink:0}
@@ -1898,13 +1898,13 @@ function cardsHTML(list){
   return '<div class="acard-grid">'+sorted.map(function(a){
     var overdue = a.echeance && daysSince(a.echeance)>0 && STATUTS_OUVERTS.indexOf(a.statut)===-1;
     var cls = (a.priorite==="P1"?"p1":a.priorite==="P2"?"p2":a.priorite==="P3"?"p3":"")+(overdue?" overdue":"");
-    return '<div class="acard '+cls+'" data-a="show-detail" data-id="'+esc(a.id)+'">'+
+    var card = '<div class="acard '+cls+'" data-a="show-detail" data-id="'+esc(a.id)+'">'+
       '<div class="atop">'+prioChip(a.priorite)+statutChip(a.statut)+"</div>"+
       '<div style="font-weight:700;font-size:13.5px">'+esc(a.outil)+"</div>"+
       '<div class="adesc">'+esc(a.descriptif)+"</div>"+
       '<div class="afoot"><div class="avatar-row">'+(a.pilote?avatarHTML(a.pilote)+'<span class="small mut">'+esc(a.pilote)+"</span>":'<span class="small mut">Sans pilote</span>')+"</div>"+ageBadgeHTML(a)+"</div>"+
     "</div>";
-  }).join("")+"</div>";
+  if(S.detailId===a.id) card += '<div class="acard-detail-slot">'+detailPanelWrap(a)+"</div>"; return card; }).join("")+"</div>";
 }
 function detailPanelWrap(a){
   if(!a) return "";
@@ -1922,7 +1922,7 @@ function consultResultsInner(){
   var detail = S.detailId ? S.anomalies.filter(function(x){ return x.id===S.detailId; })[0] : null;
   return buildKpiTilesHTML(list)+
     '<div class="card pad" style="margin-bottom:18px">'+progressGlobalHTML(k)+"</div>"+
-    (detail ? detailPanelWrap(detail) : "")+
+    (detail && S.consultView!=="cards" ? detailPanelWrap(detail) : "")+
     (S.consultView==="cards" ? cardsHTML(list) : tableHTML(list))+
     '<p class="small mut" style="margin-top:12px">'+list.length+" anomalie(s) affichée(s) sur "+S.anomalies.length+".</p>";
 }
