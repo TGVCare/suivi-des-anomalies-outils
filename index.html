@@ -1736,7 +1736,7 @@ function renderDeclare(){
     "</div>"+
     field_select("Impact", "forms.declare.impact", f.impact, [""].concat(IMPACTS), false)+
     '<div class="grid2">'+
-      field_text("N° Ticket (INC…)", "forms.declare.ticket", f.ticket, "ex. INC3900000", false)+
+      field_text("N° Ticket (INC…)", "forms.declare.ticket", f.ticket, "ex. INC3900000", true)+
       field_text("N° Jira (le cas échéant)", "forms.declare.jira", f.jira, "ex. ONICS-10000", false)+
     "</div>"+
     field_select("Sévérité perçue", "forms.declare.severite", f.severite, ["","Basse","Moyenne","Haute","Bloquante"], false)+
@@ -3074,8 +3074,8 @@ function handleAction(a, v, id){
       break;
     case "submit-declare": {
       var f = S.forms.declare;
-      if(!f.site || !f.outil || !f.descriptif || !f.declarant){
-        toast("Merci de compléter les champs obligatoires (site, outil, descriptif, déclarant).", true);
+      if(!f.site || !f.outil || !f.descriptif || !f.declarant || !f.ticket){
+        toast("Merci de compléter les champs obligatoires (site, outil, descriptif, déclarant, n° ticket).", true);
         return;
       }
       var obj = {
