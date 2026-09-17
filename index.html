@@ -1613,8 +1613,8 @@ function field_text(labelTxt, path, current, placeholder, required){
   return '<div class="field"><label'+(required?' class="req"':"")+">"+esc(labelTxt)+"</label>"+
     '<input class="inp" type="text" data-f="'+path+'" value="'+esc(current)+'" placeholder="'+esc(placeholder||"")+'"></div>';
 }
-function field_date(labelTxt, path, current){
-  return '<div class="field"><label>'+esc(labelTxt)+'</label><input class="inp" type="date" data-f="'+path+'" value="'+esc(current)+'"></div>';
+function field_date(labelTxt, path, current, maxToday){
+  var maxAttr = maxToday ? ' max="'+todayISO()+'"' : ''; return '<div class="field"><label>'+esc(labelTxt)+'</label><input class="inp" type="date" data-f="'+path+'" value="'+esc(current)+'"'+maxAttr+'></div>';
 }
 function filterSelect(path, current, values, allLabel, isPrio){
   return '<select data-f="'+path+'" data-refresh="refreshResults">'+
@@ -1732,7 +1732,7 @@ function renderDeclare(){
     '<div class="field"><label class="req">Descriptif de l’anomalie / irritant</label><textarea class="inp" data-f="forms.declare.descriptif">'+esc(f.descriptif)+"</textarea></div>"+
     '<div class="grid2">'+
       field_text("Signalé par", "forms.declare.declarant", f.declarant, "Nom, prénom", true)+
-      field_date("Date de déclaration", "forms.declare.dateDeclaration", f.dateDeclaration)+
+      field_date("Date de déclaration", "forms.declare.dateDeclaration", f.dateDeclaration, true)+
     "</div>"+
     field_select("Impact", "forms.declare.impact", f.impact, [""].concat(IMPACTS), false)+
     '<div class="grid2">'+
@@ -1743,7 +1743,7 @@ function renderDeclare(){
     '<div class="field"><label>Commentaire / éléments utiles</label><textarea class="inp" data-f="forms.declare.commentaire">'+esc(f.commentaire)+"</textarea></div>"+
     field_text("Numéro CP (optionnel)", "forms.declare.cp", f.cp, "ex. 1234567A", false)+
     (f.cp ? '<p class="mut small" style="margin:-8px 0 10px">Tu retrouveras ce ticket sur tous tes appareils, et seras notifié automatiquement si son statut change.</p>' :
-      '<p class="mut small" style="margin:-8px 0 10px">Renseigne-le pour retrouver ce ticket sur tous tes appareils et être notifié automatiquement des changements de statut.</p>')+
+      '<p class="mut small" style="margin:-8px 0 10px">Renseignez-le pour retrouver ce ticket sur tous vos appareils et être notifié automatiquement des changements de statut.</p>')+
     (!f.cp && fcmReady ? '<label class="checkline" style="margin:4px 0 6px"><input type="checkbox" data-f="forms.declare.notifyMe" '+(f.notifyMe?"checked":"")+'> Me notifier sur cet appareil si le statut de mon ticket change</label>' :
       (!f.cp && iosNeedsInstall ? '<p class="mut small" style="margin:4px 0 6px">Pour être notifié des changements de statut sur iPhone/iPad : appuie sur <b>Partager</b> puis <b>Sur l’écran d’accueil</b>, et rouvre l’app depuis cette icône.</p>' : ""))+
     '<div class="btnrow" style="margin-top:6px"><button class="btn bp" data-a="submit-declare">Enregistrer le ticket</button></div>'+
@@ -3078,7 +3078,11 @@ function handleAction(a, v, id){
         toast("Merci de compléter les champs obligatoires (site, outil, descriptif, déclarant, n° ticket).", true);
         return;
       }
-      var obj = {
+      if(f.dateDeclaration && f.dateDeclaration > todayISO()){
+          toast("La date de déclaration ne peut pas être postérieure à aujourd'hui.", true);
+          return;
+      }
+        var obj = {
         id: uid(), dateDeclaration: f.dateDeclaration||todayISO(), site: f.site, declarant: f.declarant,
         outil: f.outil, descriptif: f.descriptif, impact: f.impact||"", ticket: f.ticket||"", jira: f.jira||"",
         severite: f.severite||"", priorite:"", correctif:"", contournement:"", echeance:"", pilote:"",
