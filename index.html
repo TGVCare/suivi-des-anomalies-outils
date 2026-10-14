@@ -1834,12 +1834,12 @@ function kioskFilteredAnomalies(){
     return true;
   });
 }
-function filteredAnomalies(){
+function filteredAnomalies(ignoreOpen){
   var f = S.filters;
   return S.anomalies.filter(function(a){
     if(f.site!=="all" && a.site!==f.site) return false;
     if(f.outil!=="all" && a.outil!==f.outil) return false;
-    if(f.statut==="__open"){ if(STATUTS_OUVERTS.indexOf(a.statut)!==-1) return false; }
+    if(f.statut==="__open"){ if(!ignoreOpen && STATUTS_OUVERTS.indexOf(a.statut)!==-1) return false; }
     else if(f.statut!=="all" && a.statut!==f.statut) return false;
     if(f.priorite!=="all" && (a.priorite||"")!==f.priorite) return false;
     if(f.q){
@@ -1919,9 +1919,10 @@ function detailPanelWrap(a){
 }
 function consultResultsInner(){
   var list = filteredAnomalies();
-  var k = computeKPIs(list);
+  var kpiList = S.filters.statut==="__open" ? filteredAnomalies(true) : list;
+  var k = computeKPIs(kpiList);
   var detail = S.detailId ? S.anomalies.filter(function(x){ return x.id===S.detailId; })[0] : null;
-  return buildKpiTilesHTML(list)+
+  return buildKpiTilesHTML(kpiList)+
     '<div class="card pad" style="margin-bottom:18px">'+progressGlobalHTML(k)+"</div>"+
     (detail && S.consultView!=="cards" ? detailPanelWrap(detail) : "")+
     (S.consultView==="cards" ? cardsHTML(list) : tableHTML(list))+
