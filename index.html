@@ -596,7 +596,7 @@ var S = {
     settings: { newOutil:"", newStatut:"", currentPin:"", newPin:"", newPin2:"" },
     changelog: { titre:"", description:"" }
   },
-  filters: { q:"", site:"all", outil:"all", statut:"all", priorite:"all" },
+  filters: { q:"", site:"all", outil:"all", statut:"__open", priorite:"all" },
   kioskFilters: { site:"all", statut:"all", outil:"all", period:"all" },
   kioskSlideSelection: {},
   kioskSectionOrder: null,
@@ -1619,7 +1619,7 @@ function field_date(labelTxt, path, current, maxToday){
 function filterSelect(path, current, values, allLabel, isPrio){
   return '<select data-f="'+path+'" data-refresh="refreshResults">'+
     values.map(function(v){
-      var lbl = v==="all" ? allLabel : (isPrio ? (PRIORITE_LABEL[v]!==undefined?PRIORITE_LABEL[v]:"Non priorisé") : v);
+      var lbl = v==="all" ? allLabel : v==="__open" ? "Ouvertes (hors Résolu / Fermé)" : (isPrio ? (PRIORITE_LABEL[v]!==undefined?PRIORITE_LABEL[v]:"Non priorisé") : v);
       return opt(v, lbl, current);
     }).join("")+"</select>";
 }
@@ -1839,7 +1839,8 @@ function filteredAnomalies(){
   return S.anomalies.filter(function(a){
     if(f.site!=="all" && a.site!==f.site) return false;
     if(f.outil!=="all" && a.outil!==f.outil) return false;
-    if(f.statut!=="all" && a.statut!==f.statut) return false;
+    if(f.statut==="__open"){ if(STATUTS_OUVERTS.indexOf(a.statut)!==-1) return false; }
+    else if(f.statut!=="all" && a.statut!==f.statut) return false;
     if(f.priorite!=="all" && (a.priorite||"")!==f.priorite) return false;
     if(f.q){
       var q = f.q.toLowerCase();
@@ -1935,7 +1936,7 @@ function renderConsult(){
       '<input type="search" placeholder="Rechercher (outil, descriptif, ticket…)" data-f="filters.q" data-refresh="refreshResults" value="'+esc(S.filters.q)+'">'+
       filterSelect("filters.site", S.filters.site, ["all"].concat(SITES), "Tous les sites")+
       filterSelect("filters.outil", S.filters.outil, ["all"].concat(S.settings.outils), "Tous les outils")+
-      filterSelect("filters.statut", S.filters.statut, ["all"].concat(S.settings.statuts), "Tous les statuts")+
+      filterSelect("filters.statut", S.filters.statut, ["all","__open"].concat(S.settings.statuts), "Tous les statuts")+
       filterSelect("filters.priorite", S.filters.priorite, ["all","P1","P2","P3",""], "Toutes priorités", true)+
       '<div class="viewtoggle"><button class="'+(S.consultView==="table"?"on":"")+'" data-a="set-view" data-v="table">Tableau</button><button class="'+(S.consultView==="cards"?"on":"")+'" data-a="set-view" data-v="cards">Cartes</button></div>'+
     "</div>"+
@@ -2133,7 +2134,7 @@ function adminListe(){
       '<input type="search" placeholder="Rechercher…" data-f="filters.q" data-refresh="refreshResults" value="'+esc(S.filters.q)+'">'+
       filterSelect("filters.site", S.filters.site, ["all"].concat(SITES), "Tous les sites")+
       filterSelect("filters.outil", S.filters.outil, ["all"].concat(S.settings.outils), "Tous les outils")+
-      filterSelect("filters.statut", S.filters.statut, ["all"].concat(S.settings.statuts), "Tous les statuts")+
+      filterSelect("filters.statut", S.filters.statut, ["all","__open"].concat(S.settings.statuts), "Tous les statuts")+
       filterSelect("filters.priorite", S.filters.priorite, ["all","P1","P2","P3",""], "Toutes priorités", true)+
       '<button class="btn bsm" data-a="tab" data-v="saisie">+ Nouvelle anomalie</button>'+
     "</div>"+
